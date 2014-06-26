@@ -11,7 +11,7 @@ To get mp3 encoding for darkice I had to compile it because the Raspbian distrib
 
 Then, I realized, that I had the Uniden USB serial adapter and maybe I could also monitor and control the scanner with it. Thus this project was born.
 
-As of this writing the project is very much in flux to say the least. I am going to try to keep this branch (main) clean and do the messy stuff in dev and its sub-branches. We'll see how this works out.
+As of this writing the project is very much in flux to say the least. I am going to try to keep this branch (master) clean and do the messy stuff in dev and its sub-branches. We'll see how this works out.
 
 Initially this will be a command-line tool that uses curses to enable a richer display. It may spawn a GUI form but, for now, I don't run a GUI on my Raspberry Pi.
 
