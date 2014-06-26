@@ -6,6 +6,7 @@ Scanner -- Defines data and control structures to control
 
 import os
 import stat
+import subprocess
 
 class Scanner:
 	"""
@@ -31,7 +32,7 @@ class Scanner:
 		Initialization will try to figure out what to use if the argumant is omitted.
 		"""
 		if device is None:
-			devs = ("/dev/ttyUSB1", "/dev/ttyUSB0")
+			devs = ("/dev/ttyUSB0", "/dev/ttyUSB1")
 		else:
 			devs = (device)
 
@@ -40,6 +41,7 @@ class Scanner:
 			try:
 				if stat.S_ISCHR(os.stat(d).st_mode):
 					self.device = d
+					break	# We found it
 			except:
 				pass
 
