@@ -19,6 +19,7 @@ class Scanner:
 
 	Methods:
 		readline -- Read one line of response from the scanner.
+		writeline -- Write one line of text to the scanner
 		close    -- Cease operations on the scanner.
 		reopen   -- Reopen a closed connection to the scanner
 	"""
@@ -34,12 +35,12 @@ class Scanner:
 		if device is None:
 			devs = ("/dev/ttyUSB0", "/dev/ttyUSB1")
 		else:
-			devs = (device)
+			devs = device
 
 		self.device = None
 		for d in devs:
 			try:
-				if stat.S_ISCHR(os.stat(d).st_mode):
+				if stat.S_ISCHR(os.stat(d).st_mode) and os.access(d, os.W_OK):
 					self.device = d
 					break	# We found it
 			except:
@@ -47,3 +48,11 @@ class Scanner:
 
 		if self.device is None:
 			raise IOError("\"{}\" not found or not suitable".format(devs))
+
+		rc = subprocess.call("stty --file {} ispeed 115200 ospeed 115200 -echo -ocrnl onlcr".format(self.device).split())
+		if rc != 0:
+			raise IOError("Unable to initialize \"{}\"".format(self.device))
+
+		self._readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r')
+		self._writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r')
+
