@@ -34,6 +34,8 @@ class Scanner:
 		"""
 		if device is None:
 			devs = ("/dev/ttyUSB0", "/dev/ttyUSB1")
+		elif isinstance(device, str):
+			devs = (device, )
 		else:
 			devs = device
 
@@ -49,13 +51,20 @@ class Scanner:
 		if self.device is None:
 			raise IOError("\"{}\" not found or not suitable".format(devs))
 
-		rc = subprocess.call("stty --file {} ispeed 115200 ospeed 115200 -echo -ocrnl onlcr".format(self.device).split())
+		rc = subprocess.call("stty --file {} 115200 -echo -ocrnl -onlcr raw time 5".format(self.device).split())
 		if rc != 0:
 			raise IOError("Unable to initialize \"{}\"".format(self.device))
 
-		self._readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r')
-		self._writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r')
+# Ensure we can open it in both mods
+		_readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r')
+		_readio.close()
+		_writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r')
+		_writeio.close()
 
 	def close(self):
-		self._readio.close()
-		self._writeio.close()
+		pass
+
+	def readline(self):
+		_readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r')
+		_readio.close()
+		
