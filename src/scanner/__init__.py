@@ -56,3 +56,6 @@ class Scanner:
 		self._readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r')
 		self._writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r')
 
+	def close(self):
+		self._readio.close()
+		self._writeio.close()
