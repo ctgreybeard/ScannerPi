@@ -88,7 +88,16 @@ class Monwin:
 			self.border = border
 			self.hlinetop = hlinetop
 			self.hlinebottom = hlinebottom
-			self.logger.info("subwin %s: Initialized master=%s height=%s, width=%s origin_y=%s,origin_x=%s overlay=%s,textinput=%s borders=%s,%s,%s,%s border=%s hlinetop=%s,hlinebottom=%s", name, master, height, width, origin_y, origin_x, overlay, textinput, borderleft, borderright, bordertop, borderbottom, border, hlinetop, hlinebottom)
+			self.logger.info(', '.join(("subwin %s: Initialized master=%s", 
+				"height=%s", "width=%s", "origin_y=%s", "origin_x=%s", 
+				"overlay=%s", "textinput=%s", 
+				"borders=(%s,%s,%s,%s)", "border=%s", 
+				"hlinetop=0x%x", "hlinebottom=0x%x")), 
+				name, (master.getbegyx(), master.getmaxyx()), 
+				height, width, origin_y, origin_x, 
+				overlay, textinput, 
+				borderleft, borderright, bordertop, borderbottom, border, 
+				hlinetop, hlinebottom)
 
 			if not overlay:
 				if border:
@@ -151,7 +160,7 @@ class Monwin:
 			message -- The message (a string)
 			color -- The color of the message("NORM", "ALERT", "WARN", "GREEN")
 			"""
-			self.logger.info("subwin %s: writing\"%s\"", self.name, message)
+			self.logger.info("subwin %s: writing \"%s\"", self.name, message)
 			target = self.window
 			target.scroll()
 			try:

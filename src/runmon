@@ -1,0 +1,12 @@
+#!/usr/local/bin/zsh
+
+[[ -f scanmon.log ]] && rm scanmon.log
+
+python3 scanmon.py 2>error.log
+
+logs=()
+
+[[ -s error.log ]] && logs=(error.log $logs)
+[[ -s scanmon.log ]] && logs=(scanmon.log $logs)
+
+[[ $#logs > 0 ]] && less $logs
