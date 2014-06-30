@@ -9,14 +9,26 @@ import curses
 import threading
 import queue
 from collections import deque
+import logging
+from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
 
 # Our own definitions
 from scanner import Scanner
 from monwin import Monwin
 
+_logformat = "{asctime} {module}.{funcName} -{levelname}- *{threadName}* {message}"
+
 class Scanmon:
 
 	def __init__(self, scandevice):
+		self.logger = logging.getLogger('scanmon')
+		self.logger.setLevel(LDEBUG)
+		lfh = logging.FileHandler('scanmon.log')
+		lfh.setLevel(LDEBUG)
+		lfmt = logging.Formatter(fmt=_logformat, style = '{')
+		lfh.setFormatter(lfmt)
+		self.logger.addHandler(lfh)
+		self.logger.info("Scanmon initializing")
 		self.scanner = Scanner(scandevice)
 # Build the queues, use an arbitrary 10 as the maxsize
 		self.q_scanout = queue.Queue(maxsize=10)	# Output to the scanner
@@ -47,7 +59,7 @@ class Scanmon:
 
 		cmd = self.monwin.getline()
 
-		print("cmd=\"{}\"".format(cmd), file=sys.stderr)
+		self.logger.debug("cmd=\"%s\"", cmd)
 
 	def close(self):
 		self.scanner.close()

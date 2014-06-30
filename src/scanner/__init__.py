@@ -9,6 +9,8 @@ import stat
 import termios
 import copy
 import codecs
+import logging
+from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
 
 # Internal constants
 _ENCODING = 'ascii'
@@ -95,6 +97,10 @@ class Scanner:
 
 		Initialization will try to figure out what to use if the argumant is omitted.
 		"""
+
+# Initialize th logger
+		self.logger = logging.getLogger('scanmon.scanner')
+		self.logger.info("Initializing scanner")
 		if device is None:
 			devs = ("/dev/ttyUSB0", "/dev/ttyUSB1")
 		elif isinstance(device, str):
@@ -112,6 +118,7 @@ class Scanner:
 				pass
 
 		if self.device is None:
+			self.logger.critical("scanner: \"%s\" not found or not suitable", devs)
 			raise IOError("\"{}\" not found or not suitable".format(devs))
 
 		codecs.register_error('ques', _decodeerror)

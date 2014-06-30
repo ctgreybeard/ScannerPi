@@ -10,6 +10,8 @@ import curses
 import curses.ascii as ascii
 import curses.panel as panel
 import curses.textpad as textpad
+import logging
+from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
 
 NORM = 1
 ALERT = NORM + 1    # Color pair #2
@@ -67,6 +69,9 @@ class Monwin:
 			hline{top,bottom} -- Draw a horizontal line top or bottom with this character (False)
 			"""
 
+# Set up logging
+			self.logger = logging.getLogger('scanmon.monwin.subwin')
+			self.logger.info('subwin %s: Initializing', name)
 # Record the initial parameters
 			self.master = master
 			self.name = name
@@ -83,22 +88,14 @@ class Monwin:
 			self.border = border
 			self.hlinetop = hlinetop
 			self.hlinebottom = hlinebottom
-			if __debug__: print("""
-Initializing {}
-master={}
-height={}, width={}
-origin_y={},origin_x={}
-overlay={},textinput={}
-borders={},{},{},{}
-border={}
-hlinetop={},hlinebottom={}""".format(name, master, height, width, origin_y, origin_x, overlay, textinput, borderleft, borderright, bordertop, borderbottom, border, hlinetop, hlinebottom), file=sys.stderr)
+			self.logger.info("subwin %s: Initialized master=%s height=%s, width=%s origin_y=%s,origin_x=%s overlay=%s,textinput=%s borders=%s,%s,%s,%s border=%s hlinetop=%s,hlinebottom=%s", name, master, height, width, origin_y, origin_x, overlay, textinput, borderleft, borderright, bordertop, borderbottom, border, hlinetop, hlinebottom)
 
 			if not overlay:
 				if border:
 # Create a dummy "master" window to hold the border
 					master = self.master.subwin(height, width, origin_y, origin_x)
 					master.border()
-					if __debug__: print("non-overlay+border master at {}".format((height, width, origin_y, origin_x),), file = sys.stderr)
+					self.logger.info("subwin %s: non-overlay+border master at %s", self.name, (height, width, origin_y, origin_x))
 					origin_x = 0
 					origin_y = 0
 					borderleft = 1
@@ -116,10 +113,10 @@ hlinetop={},hlinebottom={}""".format(name, master, height, width, origin_y, orig
 					width - borderleft - borderright,
 					origin_y + bordertop,
 					origin_x + borderleft)
-				if __debug__: print("subwindow at {}".format((height - bordertop - borderbottom, width - borderleft - borderright, origin_y + bordertop, origin_x + borderleft),), file = sys.stderr)
+				self.logger.info("subwin %s: subwindow at %s", self.name, (height - bordertop - borderbottom, width - borderleft - borderright, origin_y + bordertop, origin_x + borderleft))
 
 				self.bottomline = height - bordertop - borderbottom - 1
-				assert self.bottomline >= 0, "{}: bottomline({}) less than 0".format(self.name, self.bottomline)
+				assert self.bottomline >= 0, "%s: bottomline(%s) less than 0".format(self.name, self.bottomline)
 				self.firstcol = 0
 				self.msgwidth = width - borderleft - borderright
 				if self.bottomline > 0:
@@ -127,23 +124,23 @@ hlinetop={},hlinebottom={}""".format(name, master, height, width, origin_y, orig
 					try:
 						self.window.setscrreg(0, self.bottomline)
 					except:
-						if __debug__: print("setscrreg(0, {}) failed.".format(self.bottomline), file=sys.stderr)
+						self.logger.error("subwin %s: setscrreg(0, %s) failed.", self.name, self.bottomline)
 
 				if hlinetop and bordertop:
 					master.hline(origin_y, borderleft, hlinetop, self.msgwidth)
-					if __debug__: print("{}: hlinetop at {},{}".format(self.name, origin_y, borderleft), file=sys.stderr)
+					self.logger.info("subwin %s: hlinetop at %s,%s", self.name, origin_y, borderleft)
 
 				if hlinebottom and borderbottom:
 					bline = origin_y + height - 1
 					master.hline(bline, borderleft, hlinebottom, self.msgwidth)
-					if __debug__: print("{}: hlinebottom at {},{}".format(self.name, bline, borderleft), file=sys.stderr)
+					self.logger.info("subwin %s: hlinebottom at %s,%s", self.name, origin_y, borderleft)
 
 			else:
 				raise NotImplementedError("Overlays still need to be done")
 
 			if textinput:
 				self.textbox = curses.textpad.Textbox(self.window)
-				if __debug__: print("textbox set", file = sys.stderr)
+				self.logger.info("subwin %s: textbox set", self.name)
 			else:
 				self.textbox = None
 
@@ -154,13 +151,13 @@ hlinetop={},hlinebottom={}""".format(name, master, height, width, origin_y, orig
 			message -- The message (a string)
 			color -- The color of the message("NORM", "ALERT", "WARN", "GREEN")
 			"""
-			if __debug__: print("{}: writing\"{}\"".format(self.name, message), file=sys.stderr)
+			self.logger.info("subwin %s: writing\"%s\"", self.name, message)
 			target = self.window
 			target.scroll()
 			try:
 				target.addnstr(self.bottomline, self.firstcol, message, self.winwidth, curses.color_pair(COLORS[color]))
 			except:
-				if __debug__: print("{}:addnstr({}, {}, {}, {}, {}) failed".format(self.name, self.bottomline, self.firstcol, message, self.winwidth, curses.color_pair(COLORS[color])), file=sys.stderr)
+				self.logger.error("subwin %s: addnstr(%s, %s, %s, %s, %s) failed", self.name, self.bottomline, self.firstcol, message, self.winwidth, curses.color_pair(COLORS[color]))
 				sys.exit(1)
 			target.refresh()
 
@@ -174,8 +171,11 @@ hlinetop={},hlinebottom={}""".format(name, master, height, width, origin_y, orig
 		Initializes the master screen with a border and builds the subwindows: msg, glg, resp, cmd, and alert
 		"""
 
+# Set up logging
+		self.logger = logging.getLogger('scanmon.monwin')
+		self.logger.info('monwin: Initializing')
 		self._mainlines, self._maincols = stdscr.getmaxyx()
-		if __debug__: print("Screen is {} lines, {} cols".format(self._mainlines, self._maincols), file = sys.stderr)
+		self.logger.info("monwin: Screen is %s lines, %s cols", self._mainlines, self._maincols)
 # Define window sizes lines and columns include border characters
 		MSGLINES = 4
 		RESPLINES = 10
