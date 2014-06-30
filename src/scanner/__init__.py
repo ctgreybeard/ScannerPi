@@ -6,7 +6,70 @@ Scanner -- Defines data and control structures to control
 
 import os
 import stat
-import subprocess
+import termios
+import copy
+import codecs
+
+# Internal constants
+_ENCODING = 'ascii'
+
+def _decodeerror(decodeerror):
+	"""Simple static decoder error routine to simply replace errors with a '?'
+	"""
+	return ('?' * (decodeerror.end - decodeerror.start), decodeerror.end, )
+
+def _setio(ttyio):
+	"""Use termios to set the tty attributs the way we like. Only make changes as necessary.
+	"""
+	attrs = termios.tcgetattr(ttyio)
+	nattrs = copy.deepcopy(attrs)
+	iflag, oflag, cflag, lflag, ispeed, ospeed, cc = list(range(7))
+# Shamefully stolen from http://en.wikibooks.org/wiki/Serial_Programming/termios
+	# Input flags - Turn off input processing
+	# convert break to null byte, no CR to NL translation,
+	# no NL to CR translation, don't mark parity errors or breaks
+	# no input parity check, don't strip high bit off,
+	# no XON/XOFF software flow control
+	#
+	nattrs[iflag] &= ~(termios.IGNBRK | termios.BRKINT | termios.ICRNL |
+		termios.INLCR | termios.PARMRK | termios.INPCK | termios.ISTRIP | termios.IXON)
+
+	# Output flags - Turn off output processing
+	# no CR to NL translation, no NL to CR-NL translation,
+	# no NL to CR translation, no column 0 CR suppression,
+	# no Ctrl-D suppression, no fill characters, no case mapping,
+	# no local output processing
+
+	nattrs[oflag] &= ~(termios.OCRNL | termios.ONLCR | termios.ONLRET |
+		termios.ONOCR | termios.OFILL | termios.OLCUC | termios.OPOST);
+
+	# No line processing:
+	# echo off, echo newline off, canonical mode off, 
+	# extended input processing off, signal chars off
+
+	attrs[lflag] &= ~(termios.ECHO | termios.ECHONL | termios.ICANON | termios.IEXTEN | termios.ISIG);
+
+	# Turn off character processing
+	# clear current char size mask, no parity checking,
+	# no output processing, force 8 bit input
+
+	nattrs[cflag] &= ~(termios.CSIZE | termios.PARENB);
+	nattrs[cflag] |= termios.CS8;
+
+	# One input byte is enough to return from read()
+	# Inter-character timer off
+
+	nattrs[cc][termios.VMIN]  = 1;
+	nattrs[cc][termios.VTIME] = 0;
+
+	# Communication speed (simple version, using the predefined
+	# constants)
+
+	nattrs[ispeed] = termios.B115200
+	nattrs[ospeed] = termios.B115200
+
+	if attrs != nattrs:
+		termios.tcsetattr(ttyio, termios.TCSAFLUSH, nattrs)
 
 class Scanner:
 	"""
@@ -51,20 +114,43 @@ class Scanner:
 		if self.device is None:
 			raise IOError("\"{}\" not found or not suitable".format(devs))
 
-		rc = subprocess.call("stty --file {} 115200 -echo -ocrnl -onlcr raw time 5".format(self.device).split())
-		if rc != 0:
-			raise IOError("Unable to initialize \"{}\"".format(self.device))
+		codecs.register_error('ques', _decodeerror)
 
 # Ensure we can open it in both mods
-		_readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r')
-		_readio.close()
-		_writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r')
-		_writeio.close()
+		self._readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r', encoding = _ENCODING, errors = 'ques')
+		assert not self._readio.closed, "Unable to open {} for reading".format(self.device)
+		if not self._readio.isatty():
+			raise IOError("\"{}\" not suitable (not a tty)".format(self.device))
+		_setio(self._readio)
+		self._readio.close()
+		self._writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r', encoding = _ENCODING)
+		assert not self._writeio.closed, "Unable to open {} for writing".format(self.device)
+		if not self._writeio.isatty():
+			raise IOError("\"{}\" not suitable (not a tty)".format(self.device))
+		_setio(self._writeio)
+		self._writeio.close()
 
 	def close(self):
-		pass
+		"""Close the streams from and to the scanner.
+		"""
+		if self._readio:
+			self._readio.close()
+		if self._writeio:
+			self._writeio.close()
 
 	def readline(self):
-		_readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r')
-		_readio.close()
+		"""Read an input line from the scanner.
+		Note that this is a blocking read and should be executed in a separate thread.
+		"""
+		self._readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r', encoding = _ENCODING, errors = 'ques')
+		setio(self._readio)
+		self._readio.close()
+		
+	def writeline(self):
+		"""Write a line to the scanner.
+		Note that this is a non-blocking write
+		"""
+		self._writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r', encoding = _ENCODING)
+		setio(self._readio)
+		self._readio.close()
 		
