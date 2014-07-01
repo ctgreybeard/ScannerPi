@@ -6,7 +6,7 @@ python3 scanmon.py 2>error.log
 
 logs=()
 
-[[ -s error.log ]] && logs=(error.log $logs)
-[[ -s scanmon.log ]] && logs=(scanmon.log $logs)
+[[ -s error.log ]] && logs=(error.log)
+[[ -s scanmon.log ]] && logs=($logs scanmon.log)
 
 [[ $#logs > 0 ]] && less $logs

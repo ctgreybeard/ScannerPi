@@ -98,7 +98,7 @@ class Scanner:
 		Initialization will try to figure out what to use if the argumant is omitted.
 		"""
 
-# Initialize th logger
+# Initialize the logger
 		self.logger = logging.getLogger('scanmon.scanner')
 		self.logger.info("Initializing scanner")
 		if device is None:
@@ -150,14 +150,20 @@ class Scanner:
 		Note that this is a blocking read and should be executed in a separate thread.
 		"""
 		self._readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r', encoding = _ENCODING, errors = 'ques')
-		setio(self._readio)
+		_setio(self._readio)
+		response = self._readio.readline()
 		self._readio.close()
+		if response:
+			response = response.rstrip('\r')
+		return response
 		
-	def writeline(self):
+	def writeline(self, line):
 		"""Write a line to the scanner.
 		Note that this is a non-blocking write
 		"""
 		self._writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r', encoding = _ENCODING)
-		setio(self._readio)
-		self._readio.close()
+		_setio(self._writeio)
+		written = self._writeio.write("{}\r".format(line))
+		self._writeio.close()
+		return written
 		

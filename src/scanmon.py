@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+import time
 import threading
 import argparse
 import io
@@ -17,6 +18,8 @@ from scanner import Scanner
 from monwin import Monwin
 
 _logformat = "{asctime} {module}.{funcName} -{levelname}- *{threadName}* {message}"
+_TIMEFMT = '%H:%M:%S'
+_GLGTIME = 0.5	# Half second
 
 class Scanmon:
 
@@ -30,43 +33,137 @@ class Scanmon:
 		self.logger.addHandler(lfh)
 		self.logger.info("Scanmon initializing")
 		self.scanner = Scanner(scandevice)
-# Build the queues, use an arbitrary 10 as the maxsize
-		self.q_scanout = queue.Queue(maxsize=10)	# Output to the scanner
-		self.q_scanin = queue.Queue(maxsize=10)	# Responses from the scanner
-		self.q_command = queue.Queue(maxsize=10)	# Commands entered at the console
-		self.q_response = {}		# request to receive responses
-		self.q_response['GLG'] = self.do_glg	# We know who wants to see GLG responses
+		self.Running = False
 
-	def putline(self, win, line):
-		pass
+	def f_scanout(self):
+		"""Monitor the scanout queue and send any commands to the scanner
+		"""
+		while self.Running:
+			try:
+				msg = self.q_scanout.get(block = True, timeout = 1)
+				self.logger.info("scanout: Sending \"%s\"", msg)
+				self.scanner.writeline(msg)
+			except queue.Empty:
+				pass
 
-	def runmon(self, glgwin, respwin):
-		for line in SCANNER:
-			resp = line.split(',')
-			if resp[0] == 'GLG':
-				postglg(glgwin, resp)
-			else:
-				postresp(respwin, line, resp)
+	def f_scanin(self):
+		"""Read input from the scanner and post to the scanin queue
+		"""
+		while self.Running:
+			try:
+				msg = self.scanner.readline()
+				if msg:
+					self.logger.debug('scanin: Received "%s"', msg)
+					self.q_scanin.put(msg, block = True, timeout = 1)
+			except queue.Full:
+				self.logger.error("scanin: scanin queue full, msg lost")
+
+	def f_cmdin(self):
+		"""Read input from the window and post to the command queue
+		"""
+		while self.Running:
+			try:
+				cmd = self.monwin.getline()
+				self.logger.debug('cmdin: Command "%s"', cmd)
+				self.q_cmdin.put(cmd, block = True, timeout = 1)
+			except queue.Full:
+				self.logger.error("cmdin: command queue full, command lost")
+
+	def do_glg(self, response):
+		"""Process a GLG response
+		"""
+		try:
+			cmd, frq, mod, att, ctss, name1, name2, name3, sql, mut, sys_tag, chan_tag, p25nac = response.split(',')
+			if name1:
+				self.monwin.putline('glg', "{}: Sys={}, Grp={}, Chan={}, Freq={}".format(time.strftime(_TIMEFMT), name1, name2, name3, frq))
+		except:
+			self.monwin.message('{}: Error processing GLG response, see log'.format(time.strftime(_TIMEFMT)))
+			self.logger.error('do_glg: Error processing "%s"', response)
+
+	def do_quit(self, command):
+		"""Process a quit command
+		"""
+		self.monwin.message('Quitting...')
+		self.logger.info('Quitting...')
+		self.Running = False
+
+	def dispatch_command(self, command):
+		"""Process commands
+		"""
+		self.logger.debug('dispatch_command: Handling "%s"', command)
+		cmd = command.split(None, 1)
+		if len(cmd) > 0 and cmd[0] in self.q_commands:
+			self.q_commands[cmd[0]](command)
+		else:
+			self.monwin.message('Unknown command: "{}"'.format(command))
+			self.logger.warning('cmd: Unknown command: %s', command)
+
+	def do_response(self, response):
+		"""Process an unrequested response
+		"""
+		self.monwin.putline('resp', "{}: Resp=".format(time.strftime(_TIMEFMT), response))
+
+	def dispatch_resp(self, response):
+		"""Receive response messages and call the registered handler
+		"""
+		cmd = response.split(',', 1)
+		if len(cmd) > 0 and cmd[0] in self.q_response:
+			self.q_response[cmd[0]](response)
+		else:
+			self.do_response(response)
 
 	def main(self, stdscr):
+		"""Initialize the curses window, initialize and start the threads
+		Read and process commands from the monitor window.
+		"""
 
 		self.monwin = Monwin(stdscr)
 
-		self.monwin.putline("glg", "A test line in GLG")
-		self.monwin.putline("resp", "A test line in RESP")
-		self.monwin.message("A test MESSAGE")
-		self.monwin.putline("resp", "A second test line in RESP")
+# Build the queues, use an arbitrary 10 as the maxsize
+		MAXSIZE = 10
+		self.q_scanout = queue.Queue(maxsize=MAXSIZE)	# Output to the scanner
+		self.q_scanin = queue.Queue(maxsize=MAXSIZE)	# Responses from the scanner
+		self.q_cmdin = queue.Queue(maxsize=MAXSIZE)	# Commands entered at the console
+		self.q_response = {}		# request to receive responses
+		self.q_response['GLG'] = self.do_glg	# We know who wants to see GLG responses
+		self.q_commands = {}		# request to process commands
+		self.q_commands['quit'] = self.do_quit	# We know who wants to see this
 
-		cmd = self.monwin.getline()
+		self.Running = True
+		self.send_glg = True
 
-		self.logger.debug("cmd=\"%s\"", cmd)
+		self.t_scanout = threading.Thread(target = self.f_scanout, name = "scanout")
+		self.t_scanin = threading.Thread(target = self.f_scanin, name = "scanin")
+		self.t_cmdin = threading.Thread(target = self.f_cmdin, name = "cmdin")
+
+# Start the threads
+		self.t_scanout.start()
+		self.t_scanin.start()
+		self.t_cmdin.start()
+
+		last_glg = 0
+		while self.Running:
+			if self.send_glg and time.time() - last_glg >= _GLGTIME:
+				last_glg = time.time()
+				try:
+					self.q_scanout.put('GLG', block = False)
+				except queue.Full:
+					self.logger.error("main: scanout queue full, GLG lost")
+				try:
+					resp = self.q_scanin.get(block = False)
+					self.dispatch_resp(resp)
+				except queue.Empty:
+					pass
+				try:
+					cmd = self.q_cmdin.get(block = False)
+					self.dispatch_command(cmd)
+				except queue.Empty:
+					pass
+			time.sleep(0.1)
 
 	def close(self):
 		self.scanner.close()
 		self.monwin.close()
-
-	def do_glg(self, response):
-		pass
 
 if __name__ == '__main__':
 # Options definition

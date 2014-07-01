@@ -124,6 +124,7 @@ class Monwin:
 					origin_x + borderleft)
 				self.logger.info("subwin %s: subwindow at %s", self.name, (height - bordertop - borderbottom, width - borderleft - borderright, origin_y + bordertop, origin_x + borderleft))
 
+				self.window.leaveok(0)
 				self.bottomline = height - bordertop - borderbottom - 1
 				assert self.bottomline >= 0, "%s: bottomline(%s) less than 0".format(self.name, self.bottomline)
 				self.firstcol = 0
@@ -197,7 +198,7 @@ class Monwin:
 		# Clear screen
 		self._stdscr = stdscr
 		stdscr.clear()
-		stdscr.leaveok(False)
+		stdscr.leaveok(0)
 
 		self.main_panel = panel.new_panel(stdscr)
 # Set the color pairs
