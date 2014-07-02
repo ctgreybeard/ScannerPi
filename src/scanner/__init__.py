@@ -4,6 +4,8 @@ Classes:
 Scanner -- Defines data and control structures to control 
 """
 
+import serial
+import io
 import os
 import stat
 import termios
@@ -13,12 +15,19 @@ import logging
 from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
 
 # Internal constants
+_ENCERRORS = 'ques'
 _ENCODING = 'ascii'
+_NEWLINE = '\r'
+_TIMEOUT = 0.5
+_BAUDRATE = 115200
+_DEVS = ("/dev/ttyUSB0", "/dev/ttyUSB1")
 
 def _decodeerror(decodeerror):
 	"""Simple static decoder error routine to simply replace errors with a '?'
 	"""
 	return ('?' * (decodeerror.end - decodeerror.start), decodeerror.end, )
+
+codecs.register_error(_ENCERRORS, _decodeerror)
 
 def _setio(ttyio):
 	"""Use termios to set the tty attributs the way we like. Only make changes as necessary.
@@ -102,7 +111,7 @@ class Scanner:
 		self.logger = logging.getLogger('scanmon.scanner')
 		self.logger.info("Initializing scanner")
 		if device is None:
-			devs = ("/dev/ttyUSB0", "/dev/ttyUSB1")
+			devs = _DEVS
 		elif isinstance(device, str):
 			devs = (device, )
 		else:
@@ -121,49 +130,41 @@ class Scanner:
 			self.logger.critical("scanner: \"%s\" not found or not suitable", devs)
 			raise IOError("\"{}\" not found or not suitable".format(devs))
 
-		codecs.register_error('ques', _decodeerror)
+		try:
+			self._serscanner = serial.Serial(port = self.device, baudrate = _BAUDRATE, timeout = _TIMEOUT)
+		except serial.SerialException as serexcept:
+			self.logger.critical("scanner: \"%s\" not accessable", self.device)
+			raise serexcept
 
-# Ensure we can open it in both mods
-		self._readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r', encoding = _ENCODING, errors = 'ques')
-		assert not self._readio.closed, "Unable to open {} for reading".format(self.device)
-		if not self._readio.isatty():
-			raise IOError("\"{}\" not suitable (not a tty)".format(self.device))
-		_setio(self._readio)
-		self._readio.close()
-		self._writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r', encoding = _ENCODING)
-		assert not self._writeio.closed, "Unable to open {} for writing".format(self.device)
-		if not self._writeio.isatty():
-			raise IOError("\"{}\" not suitable (not a tty)".format(self.device))
-		_setio(self._writeio)
-		self._writeio.close()
+		_setio(_scanio)
+
+		self._scanio = io.TextIOWrapper(io.BufferedRWPair(_serscanner, _serscanner), 
+			errors = _ENCERRORS, encoding = _ENCODING, newline = _NEWLINE)
 
 	def close(self):
 		"""Close the streams from and to the scanner.
 		"""
-		if self._readio:
-			self._readio.close()
-		if self._writeio:
-			self._writeio.close()
+		if self._scanio:
+			self._scanio.close()
+		if self._serscanner:
+			self._serscanner.close()
 
 	def readline(self):
 		"""Read an input line from the scanner.
-		Note that this is a blocking read and should be executed in a separate thread.
+		Note that this is a non-blocking read, it will timeout in _TIMEOUT seconds.
 		"""
-		self._readio = open(self.device, mode = 'rt', buffering = 1, newline = '\r', encoding = _ENCODING, errors = 'ques')
-		_setio(self._readio)
-		response = self._readio.readline()
-		self._readio.close()
+		response = self._scanio.readline()
+
 		if response:
-			response = response.rstrip('\r')
+			response = response.rstrip(_NEWLINE)
 		return response
 		
 	def writeline(self, line):
 		"""Write a line to the scanner.
-		Note that this is a non-blocking write
+		Note that this is a blocking write but there should b no reason for it to block.
 		"""
-		self._writeio = open(self.device, mode = 'wt', buffering = 1, newline = '\r', encoding = _ENCODING)
-		_setio(self._writeio)
-		written = self._writeio.write("{}\r".format(line))
-		self._writeio.close()
-		return written
+		written = self._scanio.write(line)
+		self._scanio.write(_NEWLINE)
+
+		return written + 1
 		
