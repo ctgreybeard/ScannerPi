@@ -135,6 +135,7 @@ class Scanmon:
 		self.t_scanout = threading.Thread(target = self.f_scanout, name = "scanout")
 		self.t_scanin = threading.Thread(target = self.f_scanin, name = "scanin")
 		self.t_cmdin = threading.Thread(target = self.f_cmdin, name = "cmdin")
+		self.t_cmdin.daemon = True	# We can ignore this on exit
 
 # Start the threads
 		self.t_scanout.start()
@@ -160,6 +161,14 @@ class Scanmon:
 				except queue.Empty:
 					pass
 			time.sleep(0.1)
+		# Done running, wait a bit for everything to shut down
+		for n in range(10):
+			active = False
+			for t in (self.t_scanout, self.t_scanin):
+				active |= t.is_alive()
+			if not active: break
+			time.sleep(0.5)
+		self.logger.debug("%d threads: %s", threading.active_count(), list(threading.enumerate()))
 
 	def close(self):
 		self.scanner.close()
