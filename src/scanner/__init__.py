@@ -18,7 +18,7 @@ from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR a
 _ENCERRORS = 'ques'
 _ENCODING = 'ascii'
 _NEWLINE = '\r'
-_TIMEOUT = 0.5
+_TIMEOUT = 0.1
 _BAUDRATE = 115200
 _DEVS = ("/dev/ttyUSB0", "/dev/ttyUSB1")
 
@@ -136,16 +136,16 @@ class Scanner:
 			self.logger.critical("scanner: \"%s\" not accessable", self.device)
 			raise serexcept
 
-		_setio(_scanio)
+		_setio(self._serscanner)
+		self._serscanner.flushInput()
+		self._serscanner.flushOutput()
 
-		self._scanio = io.TextIOWrapper(io.BufferedRWPair(_serscanner, _serscanner), 
+		self._scanio = io.TextIOWrapper(io.BufferedRWPair(self._serscanner, self._serscanner), 
 			errors = _ENCERRORS, encoding = _ENCODING, newline = _NEWLINE)
 
 	def close(self):
 		"""Close the streams from and to the scanner.
 		"""
-		if self._scanio:
-			self._scanio.close()
 		if self._serscanner:
 			self._serscanner.close()
 
@@ -161,10 +161,11 @@ class Scanner:
 		
 	def writeline(self, line):
 		"""Write a line to the scanner.
-		Note that this is a blocking write but there should b no reason for it to block.
+		Note that this is a blocking write but there should be no reason for it to block.
 		"""
 		written = self._scanio.write(line)
 		self._scanio.write(_NEWLINE)
+		self._scanio.flush()
 
 		return written + 1
 		
