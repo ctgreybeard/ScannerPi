@@ -1,7 +1,7 @@
 """Format decoders and encoder for Uniden BCDX96XT scanner
 """
 
-import datetime
+from datetime import datetime as DateTime
 
 # Class variables
 OK = 'OK'
@@ -20,13 +20,14 @@ class ScannerDecodeError(TypeError):
 		return repr(self.value)
 
 def gendecode(response):	# A generic handler
-	for i, t in enumerate(response.parts):
-		exec('response.val["var{}"] = """{}"""'.format(i, t))
+	for i, v in enumerate(response.parts):
+		var = response.varlist[i] if i < len(response.varlist) else 'var{}'.format(i)
+		response.val[var] = v
 
 
 def gendisplay(response):
 	try:
-		resp = ','.join(response.parts)
+		resp = ','.join(response.parts[1:])
 	except:
 		resp = '?'
 	return resp
@@ -66,8 +67,9 @@ class Response:
 		self.response = ''
 		self.parts = tuple()
 		self.val = dict()
-		self.time = datetime.datetime.now()
+		self.time = DateTime.now()
 		self.display = gendisplay
+		self.varlist = ('CMD',)
 
 		if response:
 		# Something is there, look further
@@ -83,9 +85,12 @@ class Response:
 			# We got here with something. Let's deconstruct it
 			decode = gendecode
 			try:
-				handler = __import__('formatter.{}'.format(self.cmd), globals(), locals(), ['decode'], 2)
+				handler = __import__(self.cmd, globals(), locals(), None, 1)
 				if hasattr(handler, 'decode'):
 					decode = handler.decode
+				elif hasattr(handler, 'varlist'):
+					self.varlist = handler.varlist
+
 				if hasattr(handler, 'display'):
 					self.display = handler.display
 			except ImportError as e:			# In case there is no handler my that name ...
@@ -102,6 +107,7 @@ class Response:
 		# Must be a Null response. This isn't good but isn't fatal
 			self.cmd = ''
 			self.status = DECODEERROR
+
 	def __str__(self):
 		return self.display(self)
 
