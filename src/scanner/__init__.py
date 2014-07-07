@@ -13,6 +13,9 @@ import copy
 import codecs
 import logging
 from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
+from threading import RLock
+
+from .formatter import Response
 
 # Internal constants
 _ENCERRORS = 'ques'
@@ -30,12 +33,12 @@ def _decodeerror(decodeerror):
 codecs.register_error(_ENCERRORS, _decodeerror)
 
 def _setio(ttyio):
-	"""Use termios to set the tty attributs the way we like. Only make changes as necessary.
+	"""Use termios to set the tty attributes the way we like. Only make changes if necessary.
 	"""
 	attrs = termios.tcgetattr(ttyio)
 	nattrs = copy.deepcopy(attrs)
 	iflag, oflag, cflag, lflag, ispeed, ospeed, cc = list(range(7))
-# Shamefully stolen from http://en.wikibooks.org/wiki/Serial_Programming/termios
+    # Shamefully stolen from http://en.wikibooks.org/wiki/Serial_Programming/termios
 	# Input flags - Turn off input processing
 	# convert break to null byte, no CR to NL translation,
 	# no NL to CR translation, don't mark parity errors or breaks
@@ -110,6 +113,7 @@ class Scanner:
 # Initialize the logger
 		self.logger = logging.getLogger('scanmon.scanner')
 		self.logger.info("Initializing scanner")
+		self.iolock = RLock()
 		if device is None:
 			devs = _DEVS
 		elif isinstance(device, str):
@@ -153,19 +157,32 @@ class Scanner:
 		"""Read an input line from the scanner.
 		Note that this is a non-blocking read, it will timeout in _TIMEOUT seconds.
 		"""
-		response = self._scanio.readline()
+		with self.iolock:
+			response = self._scanio.readline()
 
-		if response:
-			response = response.rstrip(_NEWLINE)
+			if response and isinstance(response, str):
+				response = response.rstrip(_NEWLINE)
+
 		return response
 		
 	def writeline(self, line):
 		"""Write a line to the scanner.
 		Note that this is a blocking write but there should be no reason for it to block.
 		"""
-		written = self._scanio.write(line)
-		self._scanio.write(_NEWLINE)
-		self._scanio.flush()
+		with self.iolock:
+			written = self._scanio.write(line)
+			# Send the '\r' newline
+			self._scanio.write(_NEWLINE)
+			# And flush all output completely
+			self._scanio.flush()
+			self._serscanner.flushOutput()
 
 		return written + 1
 		
+	def command(self, cmdline):
+		"""Send one command, read the response, apply formatting and return the result."""
+		with self.iolock:
+			self.writeline(cmdline)
+			reply = self.readline()
+
+		return Response(reply)
