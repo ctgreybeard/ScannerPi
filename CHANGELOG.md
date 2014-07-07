@@ -1,4 +1,4 @@
-## CHANGELOG
+### CHANGELOG
 
 *Top down (newest first) list of major changes*
 
