@@ -14,9 +14,11 @@ s.writeline('GLG')
 print("Retrieving the rsponse")
 print(s.readline())
 
-print("Now send a command with decoded response")
+print("Now send a few commands with decoded response")
 
-print(s.command("GLG"))
+print("MDL:", s.command("MDL"))
+print("VER:", s.command("VER"))
+print("GLG:", s.command("GLG"))
 
 # Run a loop for a minute (more or less)
 print("Looping for 5 receptions. Use ^C if it's taking too long.")
@@ -24,8 +26,8 @@ t = 0
 try:
 	while t < 5:
 		r = s.command("GLG")
-		if r.val['NAME1']:
-			print("Sys={NAME1}, Group={NAME2}, Chan={NAME3}, Sql={SQL}, Mut={MUT}, Time={time}".format(time=r.time, **r.val))
+		if r.NAME1:
+			print("Sys={NAME1}, Group={NAME2}, Chan={NAME3}, Sql={SQL}, Mute={MUT}, Time={TIME}".format_map(r))
 			t += 1
 		sleep(1)
 except KeyboardInterrupt:
