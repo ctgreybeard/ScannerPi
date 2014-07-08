@@ -3,14 +3,6 @@
 
 from datetime import datetime as DateTime
 
-# Class variables
-OK = 'OK'
-NG = 'NG'
-ERR = 'ERR'
-FER = 'FER'
-ORER = 'ORER'
-DECODEERROR = 'DECODEERROR'
-
 class ScannerDecodeError(TypeError):
 	"""A generic error for decoders to use."""
 	def __init__(self, value):
@@ -19,13 +11,15 @@ class ScannerDecodeError(TypeError):
 	def __str__(self):
 		return repr(self.value)
 
-def gendecode(response):	# A generic handler
+def gendecode(response):
+	"""Generalized decoder. Disassemble using the supplied or default varlist."""
 	for i, v in enumerate(response.parts):
-		var = response.varlist[i] if i < len(response.varlist) else 'var{}'.format(i)
-		response.val[var] = v
+		var = response.varlist[i] if i < len(response.varlist) else 'VAR'
+		response.addvalue(var, v)
 
 
 def gendisplay(response):
+	"""Generalized display. Just assemble the parts."""
 	try:
 		resp = ','.join(response.parts[1:])
 	except:
@@ -43,11 +37,27 @@ class Response:
 			ERR -- Error response from scanner (Command format error / Value error, Framing error, Overrun error)
 		response -- The original response string (trailing '\r' removed if any existed)
 		parts -- ordered list of the parsed response
-		val -- dictionary of the decoded terms. For responses with no specific decoder this is empty.
+		*values* -- decoded terms. Names are in UPPER CASE as given in the BCD396XT Complete Reference
+			This is implemented such that ANY upper case name is available to be retrieved.
+			Names not set by the response return None.
+			Duplicate names (typically "RSV") are numbered from 1 after the first: RSV, RSV1, RSV2, etc.
 	"""
 
+# Class variables
+	OK = 'OK'
+	NG = 'NG'
+	ERR = 'ERR'
+	FER = 'FER'
+	ORER = 'ORER'
+	DECODEERROR = 'DECODEERROR'
+	RESP = 'RESP'
+
+# Maximum loop count correcting name collisions in __setattr__()
+	MAXi = 100
+
+
 	def __init__(self, response):
-		"""Initialize the instance, load a specific format if available
+		"""Initialize the instance, load a specific format if available.
 
 		Arguments:
 		response -- The returned string from the scanner
@@ -57,19 +67,17 @@ class Response:
 		If a first piece exists look for a decoder for it
 		Load and execute the appropriate decoder if found
 		Otherwise decode by separating the parts using ','
-		If the second piece is 'ERR' or 'NG' set the error flags appropriately
+		If the second piece is 'Response.ERR' or 'Response.NG' set the error flags appropriately
 		If the response is Null or None set the error flags
 		"""
 
 		# Ensure that we have values for the necessary attributes
 		self.cmd = '?'
-		self.status = ''
 		self.response = ''
 		self.parts = tuple()
-		self.val = dict()
-		self.time = DateTime.now()
+		self.TIME = DateTime.now()
 		self.display = gendisplay
-		self.varlist = ('CMD',)
+		self.varlist = ('CMD',)		# Default variable list
 
 		if response:
 		# Something is there, look further
@@ -79,10 +87,11 @@ class Response:
 				raise ScannerDecodeError("Invalid response ({}) from scanner".format(self.response))
 			self.cmd = self.parts[0]
 			if len(self.parts) == 2:	# Probably just an simple response
-				if self.parts[1] in (OK, NG, FER, ORER):
+				if self.parts[1] in (Response.OK, Response.NG, Response.FER, Response.ORER):
 					self.status = self.parts[1]
 					return	# We are done ...
 			# We got here with something. Let's deconstruct it
+			self.status = Response.RESP
 			decode = gendecode
 			try:
 				handler = __import__(self.cmd, globals(), locals(), None, 1)
@@ -94,7 +103,7 @@ class Response:
 				if hasattr(handler, 'display'):
 					self.display = handler.display
 			except ImportError as e:			# In case there is no handler my that name ...
-				print(e)
+				print(repr(e))
 				pass
 
 			decode(self)
@@ -106,16 +115,50 @@ class Response:
 		else:
 		# Must be a Null response. This isn't good but isn't fatal
 			self.cmd = ''
-			self.status = DECODEERROR
+			self.status = Response.DECODEERROR
 
 	def __str__(self):
+		"""Return whatever was set during initialization."""
 		return self.display(self)
 
-if __name__ == "__main__":	# Do a simple test
-	GLG = 'GLG,0463.0000,FM,0,0,Public Safety,EMS MED Channels,Med 1,1,0,NONE,NONE,NONE'
-	STS = 'STS,011000,        ����    ,,Fairfield County,,FAPERN VHF      ,, 154.1000 C151.4,,S0:12-*5*7*9-   ,,GRP----5-----   ,,1,0,0,0,0,0,5,GREEN,1'
+	def addvalue(self, name, value):
+		"""Add a response value making sure the name is upper case."""
+		self.__setattr__(name.upper(), value)
 
-	for t in (GLG, STS):
-		v = Response(t)
-		print("{} dict: {}".format(t[:3], v.__dict__))
-		print('{} str={}'.format(t[:3], v.__str__()))
+	def __setattr__(self, name, value):
+		"""Add a response value to this response.
+
+		If the name already exists then append digits, incrementing until the name is unique.
+		Note: getattr() cannot be used because we implement __getattr__ to return values for
+		non-existent values.
+		"""
+		vname = name
+		if name == name.upper():		# An uppercase name?
+			try:
+				object.__getattribute__(self, vname)		# Check if we already have one of these
+				# If we get here then there is already one ...
+				i = 1
+				while True:
+					vname = "{}{}".format(name, i)
+					# We could do this with recursion but this is simpler
+					object.__getattribute__(self, vname)	# Test if it's still there
+					# Still there, try the next
+					i += 1
+					if i > Response.MAXi: raise TypeError("too many iterations")
+			except AttributeError:
+				pass	# The error that isn't an error
+
+		object.__setattr__(self, vname, value)
+
+	def __getattr__(self, name):
+		"""Called ONLY if the requested attribute does NOT exist. For response variables we return None."""
+		if name == name.upper():	# All uppercase?
+			return None
+		raise AttributeError("{} not found".format(name))
+
+	def __getitem__(self, key):
+		"""Convenience method to allow use of str.format_map()"""
+		if key == key.upper():			# ONLY response variables allowed
+			return getattr(self, key)
+		raise IndexError("key not a response variable")
+
