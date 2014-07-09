@@ -70,7 +70,7 @@ class Monwin:
 			"""
 
 # Set up logging
-			self.logger = logging.getLogger('scanmon.monwin.subwin')
+			self.logger = logging.getLogger().getChild(__name__)
 			self.logger.info('subwin %s: Initializing', name)
 # Record the initial parameters
 			self.master = master
@@ -182,7 +182,7 @@ class Monwin:
 		"""
 
 # Set up logging
-		self.logger = logging.getLogger('scanmon.monwin')
+		self.logger = logging.getLogger().getChild(__name__)
 		self.logger.info('monwin: Initializing')
 		self._mainlines, self._maincols = stdscr.getmaxyx()
 		self.logger.info("monwin: Screen is %s lines, %s cols", self._mainlines, self._maincols)

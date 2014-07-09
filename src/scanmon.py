@@ -5,6 +5,8 @@ import time
 import threading
 import argparse
 import io
+import decimal
+import datetime
 import subprocess
 import curses
 import threading
@@ -15,48 +17,82 @@ from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR a
 
 # Our own definitions
 from scanner import Scanner
+from scanner.formatter import Response
 from monwin import Monwin
-
-_logformat = "{asctime} {module}.{funcName} -{levelname}- *{threadName}* {message}"
-_TIMEFMT = '%H:%M:%S'
-_GLGTIME = 0.5	# Half second
 
 class Scanmon:
 
+# Class constants
+	_logformat = "{asctime} {module}.{funcName} -{levelname}- *{threadName}* {message}"
+	_TIMEFMT = '%H:%M:%S'
+	_GLGTIME = 0.5	# Half second
+	_EPOCH = 3600 * 24 * 356	# A year of seconds
+
+# Inner class for GLG monitoring
+	class GLGinfo:
+		"""Class to hold monitoring info for GLG monitoring."""
+
+		IDLE = 15.0		# 15 seconds between transmissions is a new transmission
+
+# Class method
+		def id(r):
+			return '-'.join((r.NAME1, r.NAME2, r.NAME3))
+
+		def __init__(self):
+			self.lastseen = {}
+			self.lastid = ''
+			self.lastsql = False
+			self.lasttime = time.time()
+
+		def logoff(self):
+			"""Log a squelch off event"""
+			if self.lastsql == True:
+				self.loglast()
+
+		def logon(self, r):
+			id = Scanmon.GLGinfo.id(r)
+			now = time.time()
+			if id != self.lastid or now - self.lasttime > Scanmon.GLGinfo.IDLE:
+				self.loglast()
+				self.logthis(id, now)
+			self.lasttime = now
+
+		def logit(self, r):
+			self.rval = False	# Assume we don't print this
+			heard = r.SQL == '1' and r.MUT == '0'
+			if heard:
+				self.logon(r)
+			else:
+				self.logoff()
+			self.lastsql = bool(r.SQL)
+			return self.rval
+
+		def loglast(self):
+			self.lastseen[self.lastid] = self.lasttime
+
+		def logthis(self, id, now):
+			self.rval = now - ( self.lastseen[id] if id in self.lastseen else 0 )
+			self.lastseen[id] = now
+			self.lastid = id
+
+
 	def __init__(self, scandevice):
-		self.logger = logging.getLogger('scanmon')
-		self.logger.setLevel(LDEBUG)
+		self.logger = logging.getLogger()
+		self.logger.setLevel(LINFO)
 		lfh = logging.FileHandler('scanmon.log')
 		lfh.setLevel(LDEBUG)
-		lfmt = logging.Formatter(fmt=_logformat, style = '{')
+		lfmt = logging.Formatter(fmt=Scanmon._logformat, style = '{')
 		lfh.setFormatter(lfmt)
 		self.logger.addHandler(lfh)
 		self.logger.info("Scanmon initializing")
 		self.scanner = Scanner(scandevice)
 		self.Running = False
+		self.glginfo = Scanmon.GLGinfo()
+		self.autocmd = False
 
-	def f_scanout(self):
-		"""Monitor the scanout queue and send any commands to the scanner
-		"""
-		while self.Running:
-			try:
-				msg = self.q_scanout.get(block = True, timeout = 1)
-				self.logger.info("scanout: Sending \"%s\"", msg)
-				self.scanner.writeline(msg)
-			except queue.Empty:
-				pass
-
-	def f_scanin(self):
-		"""Read input from the scanner and post to the scanin queue
-		"""
-		while self.Running:
-			try:
-				msg = self.scanner.readline()
-				if msg:
-					self.logger.debug('scanin: Received "%s"', msg)
-					self.q_scanin.put(msg, block = True, timeout = 1)
-			except queue.Full:
-				self.logger.error("scanin: scanin queue full, msg lost")
+	def setDebug(self, debug):
+		if debug: self.logger.setLevel(LDEBUG)
+		else: self.logger.setLevel(LINFO)
 
 	def f_cmdin(self):
 		"""Read input from the window and post to the command queue
@@ -69,48 +105,64 @@ class Scanmon:
 			except queue.Full:
 				self.logger.error("cmdin: command queue full, command lost")
 
-	def do_glg(self, response):
-		"""Process a GLG response
+	def do_glg(self):
+		"""Send and process a GLG command
 		"""
+		r = self.scanner.command('GLG')
+		if self._lastcheck != r.response:
+			self.logger.debug("Checking: status=%s, sql=%r, mut=%r, response=%s", r.status, r.SQL, r.MUT, r.response)
+			self._lastcheck = r.response
 		try:
-			cmd, frq, mod, att, ctss, name1, name2, name3, sql, mut, sys_tag, chan_tag, p25nac = response.split(',')
-			if name1:
-				self.monwin.putline('glg', "{}: Sys={}, Grp={}, Chan={}, Freq={}".format(time.strftime(_TIMEFMT), name1, name2, name3, frq))
+			if r.status == Response.RESP:
+				dur = int(self.glginfo.logit(r))
+				if bool(dur):
+					try:
+						frq = float(r.FRQ_TGID)
+					except ValueError:
+						frq = decimal.Decimal('NaN')
+					self.monwin.putline('glg', 
+						"{0}: Sys={1:.<16s}|Grp={2:.<16s}|Chan={3:.<16s}|Freq={4:#9.4f}|C/D={6:>3s} since={5}".\
+						format(r.TIME.strftime(Scanmon._TIMEFMT), r.NAME1, r.NAME2, r.NAME3, frq, 
+						str(datetime.timedelta(seconds=dur)) if dur < Scanmon._EPOCH else 'Forever', r.CTCSS_DCS))
+			else:
+				self.logger.error("Unexpected GLG response: %s", r.status)
 		except:
-			self.monwin.message('{}: Error processing GLG response, see log'.format(time.strftime(_TIMEFMT)))
-			self.logger.error('do_glg: Error processing "%s"', response)
+			self.logger.exception('do_glg: Error processing "%s"', r.response)
+			self.monwin.message('{}: Error processing GLG response, see log'.format(time.strftime(Scanmon._TIMEFMT)))
 
-	def do_quit(self, command):
-		"""Process a quit command
-		"""
+	def do_cmd(self, command, cmd):
+		"""Proccess a request to send a scanner command."""
+		if len(cmd) > 1:
+			r = self.scanner.command(cmd[1].upper())
+			self.monwin.putline('resp', '{}: {}'.format(r.CMD, r.response))
+		else:
+			self.monwin.message('No scanner command found.')
+
+	def do_autocmd(self, command, cmd):
+		"""Display or set/reset the autocommand setting."""
+		if len(cmd) > 1:
+			self.autocmd = cmd[1] == 'on'
+		self.monwin.message("autocommand is {}".format('on' if self.autocmd else 'off'))
+
+	def do_quit(self, command, cmd):
+		"""Process a quit command."""
 		self.monwin.message('Quitting...')
 		self.logger.info('Quitting...')
 		self.Running = False
 
-	def dispatch_command(self, command):
-		"""Process commands
-		"""
-		self.logger.debug('dispatch_command: Handling "%s"', command)
-		cmd = command.split(None, 1)
-		if len(cmd) > 0 and cmd[0] in self.q_commands:
-			self.q_commands[cmd[0]](command)
-		else:
-			self.monwin.message('Unknown command: "{}"'.format(command))
-			self.logger.warning('cmd: Unknown command: %s', command)
-
-	def do_response(self, response):
-		"""Process an unrequested response
-		"""
-		self.monwin.putline('resp', "{}: Resp=".format(time.strftime(_TIMEFMT), response))
-
-	def dispatch_resp(self, response):
-		"""Receive response messages and call the registered handler
-		"""
-		cmd = response.split(',', 1)
-		if len(cmd) > 0 and cmd[0] in self.q_response:
-			self.q_response[cmd[0]](response)
-		else:
-			self.do_response(response)
+	def dispatch_command(self, inputstr):
+		"""Process commands."""
+		self.logger.info('dispatch_command: Handling "%s"', inputstr)
+		command = inputstr.strip()
+		if len(command) > 0:
+			cmd = command.split(None, 1)
+			if cmd[0] in self.q_commands:
+				self.q_commands[cmd[0]](command, cmd)
+			elif self.autocmd:
+				self.q_commands['cmd']("".join(('cmd ', inputstr)), ('cmd', inputstr))
+			else:
+				self.monwin.message('Unknown command: "{}"'.format(command))
+				self.logger.warning('cmd: Unknown command: %s', command)
 
 	def main(self, stdscr):
 		"""Initialize the curses window, initialize and start the threads
@@ -121,54 +173,37 @@ class Scanmon:
 
 # Build the queues, use an arbitrary 10 as the maxsize
 		MAXSIZE = 10
-		self.q_scanout = queue.Queue(maxsize=MAXSIZE)	# Output to the scanner
-		self.q_scanin = queue.Queue(maxsize=MAXSIZE)	# Responses from the scanner
 		self.q_cmdin = queue.Queue(maxsize=MAXSIZE)	# Commands entered at the console
-		self.q_response = {}		# request to receive responses
-		self.q_response['GLG'] = self.do_glg	# We know who wants to see GLG responses
 		self.q_commands = {}		# request to process commands
 		self.q_commands['quit'] = self.do_quit	# We know who wants to see this
+		self.q_commands['cmd'] = self.do_cmd	# We know who wants to see this
+		self.q_commands['autocmd'] = self.do_autocmd	# We know who wants to see this
 
 		self.Running = True
 		self.send_glg = True
 
-		self.t_scanout = threading.Thread(target = self.f_scanout, name = "scanout")
-		self.t_scanin = threading.Thread(target = self.f_scanin, name = "scanin")
 		self.t_cmdin = threading.Thread(target = self.f_cmdin, name = "cmdin")
 		self.t_cmdin.daemon = True	# We can ignore this on exit
 
 # Start the threads
-		self.t_scanout.start()
-		self.t_scanin.start()
 		self.t_cmdin.start()
+		self.monwin.message("Scanner running - Model: {}, Version: {}".format(self.scanner.MDL, self.scanner.VER))
 
 		last_glg = 0
+		self._lastcheck = ''
 		while self.Running:
-			if self.send_glg and time.time() - last_glg >= _GLGTIME:
-				last_glg = time.time()
-				try:
-					self.q_scanout.put('GLG', block = False)
-				except queue.Full:
-					self.logger.error("main: scanout queue full, GLG lost")
-				try:
-					resp = self.q_scanin.get(block = False)
-					self.dispatch_resp(resp)
-				except queue.Empty:
-					pass
-				try:
-					cmd = self.q_cmdin.get(block = False)
-					self.dispatch_command(cmd)
-				except queue.Empty:
-					pass
+			now = time.time()
+			if self.send_glg and now - last_glg >= Scanmon._GLGTIME:
+				last_glg = now
+				self.do_glg()
+			try:
+				cmd = self.q_cmdin.get(block = False)
+				self.dispatch_command(cmd)
+			except queue.Empty:
+				pass
 			time.sleep(0.1)
-		# Done running, wait a bit for everything to shut down
-		for n in range(10):
-			active = False
-			for t in (self.t_scanout, self.t_scanin):
-				active |= t.is_alive()
-			if not active: break
-			time.sleep(0.5)
 		self.logger.debug("%d threads: %s", threading.active_count(), list(threading.enumerate()))
+		self.logger.debug("glginfo.lastseen=%s", self.glginfo.lastseen)
 
 	def close(self):
 		self.scanner.close()
@@ -181,9 +216,15 @@ if __name__ == '__main__':
 		required = False, 
 		action = 'append',
 		help="The USB serial device connected to the scanner. Usually /dev/ttyUSB0. May be specified multiple times. The first valid device will be used.")
+	parser.add_argument("-d", "--debug",
+		required = False,
+		default = False,
+		action = 'store_true',
+		help="Debugging flag, default False")
 	args = parser.parse_args()
 
 	SCANNER = Scanmon(args.scanner)
+	SCANNER.setDebug(args.debug)
 
 	curses.wrapper(SCANNER.main)
 	SCANNER.close()
