@@ -1,6 +1,8 @@
 """Format decoders and encoder for Uniden BCDX96XT scanner
 """
 
+import sys
+import logging
 from datetime import datetime as DateTime
 
 class ScannerDecodeError(TypeError):
@@ -30,7 +32,7 @@ class Response:
 	"""A generic response class. Handles deconstruction of arbitrary scanner responses.
 
 	Attributes:
-		cmd -- The first word of the response or Null
+		CMD -- The first word of the response or Null
 		status -- 'OK', 'NG', 'ERR', or 'DECODEERROR'
 			OK -- Response was 'OK' or response was decoded correctly
 			NG -- Response was 'NG' (Command invalid at this time)
@@ -88,6 +90,9 @@ class Response:
 			self.cmd = self.parts[0]
 			if len(self.parts) == 2:	# Probably just an simple response
 				if self.parts[1] in (Response.OK, Response.NG, Response.FER, Response.ORER):
+					# Bypass our __setattr__ trap
+					object.__setattr__(self, 'CMD', self.parts[0])
+					object.__setattr__(self, 'RESP', self.parts[1])
 					self.status = self.parts[1]
 					return	# We are done ...
 			# We got here with something. Let's deconstruct it
@@ -103,8 +108,7 @@ class Response:
 				if hasattr(handler, 'display'):
 					self.display = handler.display
 			except ImportError as e:			# In case there is no handler my that name ...
-				print(repr(e))
-				pass
+				logging.warning(repr(e))		# Note: we do not have an instance logger because we are short lived
 
 			decode(self)
 			# We are done ...
