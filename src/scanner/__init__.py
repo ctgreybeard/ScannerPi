@@ -7,6 +7,7 @@ Scanner -- Defines data and control structures to control
 import serial
 import io
 import os
+import sys
 import stat
 import termios
 import copy
@@ -111,7 +112,7 @@ class Scanner:
 		"""
 
 # Initialize the logger
-		self.logger = logging.getLogger('scanmon.scanner')
+		self.logger = logging.getLogger().getChild(__name__)
 		self.logger.info("Initializing scanner")
 		self.iolock = RLock()
 		if device is None:
@@ -146,6 +147,12 @@ class Scanner:
 
 		self._scanio = io.TextIOWrapper(io.BufferedRWPair(self._serscanner, self._serscanner), 
 			errors = _ENCERRORS, encoding = _ENCODING, newline = _NEWLINE)
+		for c in ('MDL', 'VER'):
+			r = self.command(c)
+			if r.status == Response.RESP:
+				setattr(self, c, r.parts[1])
+			else:
+				raise IOError("Scanner did not properly respond to {} command, status={}".format(c, r.status))
 
 	def close(self):
 		"""Close the streams from and to the scanner.

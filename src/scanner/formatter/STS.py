@@ -16,11 +16,15 @@ _varlist = list(('CMD',
 	'SQL','MUT','RSV','BAT','WAT','SIG_LVL','BK_COLOR','BK_DIMMER'))
 
 # Note: L1 through L8 exist to the extent of len(DSP_FORM)
+_DSP_FORM_INDEX = _varlist.index('DSP_FORM')
+_SQL_INDX = _varlist.index('SQL')
 
 def decode(response):
-	del _varlist[2 + len(response.parts[1]) * 2: 18]	# Remove the unused Lines
+	varlist = _varlist[:]	# Make a copy
+	del varlist[1 + _DSP_FORM_INDEX + len(response.parts[_DSP_FORM_INDEX]) * 2: _SQL_INDX]	# Remove the unused Lines
+# Note that we can't use response.DSP_FORM because we haven't created it yet! We do that next.
 	for i, v in enumerate(response.parts):
-		var = _varlist[i] if i < len(_varlist) else 'VAR'
+		var = varlist[i] if i < len(varlist) else 'VAR'
 		setattr(response, var, v)
 
 # This seems overly complicated but it works.
