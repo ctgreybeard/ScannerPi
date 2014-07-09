@@ -17,7 +17,7 @@ def gendecode(response):
 	"""Generalized decoder. Disassemble using the supplied or default varlist."""
 	for i, v in enumerate(response.parts):
 		var = response.varlist[i] if i < len(response.varlist) else 'VAR'
-		response.addvalue(var, v)
+		setattr(response, var, v)
 
 
 def gendisplay(response):
@@ -54,10 +54,6 @@ class Response:
 	DECODEERROR = 'DECODEERROR'
 	RESP = 'RESP'
 
-# Maximum loop count correcting name collisions in __setattr__()
-	MAXi = 100
-
-
 	def __init__(self, response):
 		"""Initialize the instance, load a specific format if available.
 
@@ -90,9 +86,8 @@ class Response:
 			self.cmd = self.parts[0]
 			if len(self.parts) == 2:	# Probably just an simple response
 				if self.parts[1] in (Response.OK, Response.NG, Response.FER, Response.ORER):
-					# Bypass our __setattr__ trap
-					object.__setattr__(self, 'CMD', self.parts[0])
-					object.__setattr__(self, 'RESP', self.parts[1])
+					self.CMD = self.parts[0]
+					self.RESP = self.parts[1]
 					self.status = self.parts[1]
 					return	# We are done ...
 			# We got here with something. Let's deconstruct it
@@ -125,44 +120,8 @@ class Response:
 		"""Return whatever was set during initialization."""
 		return self.display(self)
 
-	def addvalue(self, name, value):
-		"""Add a response value making sure the name is upper case."""
-		self.__setattr__(name.upper(), value)
-
-	def __setattr__(self, name, value):
-		"""Add a response value to this response.
-
-		If the name already exists then append digits, incrementing until the name is unique.
-		Note: getattr() cannot be used because we implement __getattr__ to return values for
-		non-existent values.
-		"""
-		vname = name
-		if name == name.upper():		# An uppercase name?
-			try:
-				object.__getattribute__(self, vname)		# Check if we already have one of these
-				# If we get here then there is already one ...
-				i = 1
-				while True:
-					vname = "{}{}".format(name, i)
-					# We could do this with recursion but this is simpler
-					object.__getattribute__(self, vname)	# Test if it's still there
-					# Still there, try the next
-					i += 1
-					if i > Response.MAXi: raise TypeError("too many iterations")
-			except AttributeError:
-				pass	# The error that isn't an error
-
-		object.__setattr__(self, vname, value)
-
 	def __getattr__(self, name):
 		"""Called ONLY if the requested attribute does NOT exist. For response variables we return None."""
 		if name == name.upper():	# All uppercase?
 			return None
 		raise AttributeError("{} not found".format(name))
-
-	def __getitem__(self, key):
-		"""Convenience method to allow use of str.format_map()"""
-		if key == key.upper():			# ONLY response variables allowed
-			return getattr(self, key)
-		raise IndexError("key not a response variable")
-
