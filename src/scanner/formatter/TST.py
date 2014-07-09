@@ -3,8 +3,9 @@
 # Import our parent
 from . import ScannerDecodeError, Response
 
-_rsv = 'RSV'
-varlist = ('CMD', 'T1', 'T2', _rsv, _rsv)
+# This test is less meaningful since we removed the duplicate names handling
+
+varlist = ('CMD', 'T1', 'T2', 'RSV1', 'RSV2')
 
 def display(response):
-	return 'CMD={CMD}, T1={T1}, T2={T2}, RSV={RSV}, RSV={RSV1}, NOT={NOT}, Time={TIME}'.format_map(response)
+	return 'CMD={CMD}, T1={T1}, T2={T2}, RSV={RSV1}, RSV={RSV2}, NOT={NOT}, Time={TIME}'.format_map(response)
