@@ -10,7 +10,7 @@ To get mp3 encoding for darkice I had to compile it because the Raspbian distrib
 Bill Waggoner
 admin -at- greybeard -dot- org
 
-####June 2014
+#### June 2014
 
 ##### Cut down version (sort of) of Scanmon built on a Raspberry Pi
 
@@ -24,7 +24,7 @@ Initially this will be a command-line tool that uses curses to enable a richer d
 
 Comments and contributions are appreciated.
 
-####July 2014
+#### July 2014
 
 ##### Mac support
 
