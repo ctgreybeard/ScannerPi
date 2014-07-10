@@ -1,11 +1,18 @@
 ## ScannerPi
 =========
 
-### Cut down version (sort of) of Scanmon built on a Raspberry Pi
-
 I wanted to be able to listen to my scanner, sitting in my living room, while I was away. So I got a [Raspberry Pi](https://www.adafruit.com/category/105) and a [Wolfson audio board](https://www.adafruit.com/products/1761), hooked them together with [darkice](http://darkice.org/) and [icecast2](http://www.icecast.org/) and voila! It worked! Not without a little learning curve of course but that just made it interesting.
 
 To get mp3 encoding for darkice I had to compile it because the Raspbian distribution only contains support for ogg format. This may be enough for you. Streaming is **not** necessary for this particular project.
+
+### Development log
+
+Bill Waggoner
+admin -at- greybeard -dot- org
+
+####June 2014
+
+##### Cut down version (sort of) of Scanmon built on a Raspberry Pi
 
 *Note also that there is a version of darkice on [google code](https://code.google.com/p/darkice/) that appears to be newer than the 1.0 version I started with.*
 
@@ -17,6 +24,10 @@ Initially this will be a command-line tool that uses curses to enable a richer d
 
 Comments and contributions are appreciated.
 
-June 2014
-Bill Waggoner
-admin -at- greybeard -dot- org
+####July 2014
+
+##### Mac support
+
+As I run off a MAC normally I naturally want to provide support for that platform. I'm working on it.
+
+You **will** need a Serial-USB driver to run this. I found one at http://nozap.me/driver/osxpl2303/index.html
