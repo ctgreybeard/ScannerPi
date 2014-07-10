@@ -7,7 +7,7 @@ To get mp3 encoding for darkice I had to compile it because the Raspbian distrib
 
 ### Development log
 
-Bill Waggoner
+Bill Waggoner  
 admin -at- greybeard -dot- org
 
 #### June 2014
