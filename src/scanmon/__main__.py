@@ -16,9 +16,9 @@ import logging
 from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
 
 # Our own definitions
-from scanner import Scanner
-from scanner.formatter import Response
-from monwin import Monwin
+from .scanner import Scanner
+from .scanner.formatter import Response
+from .monwin import Monwin
 
 class Scanmon:
 
@@ -119,9 +119,9 @@ class Scanmon:
 						frq = float(r.FRQ_TGID)
 					except ValueError:
 						frq = decimal.Decimal('NaN')
-					self.monwin.putline('glg', 
+					self.monwin.putline('glg',
 						"{0}: Sys={1:.<16s}|Grp={2:.<16s}|Chan={3:.<16s}|Freq={4:#9.4f}|C/D={6:>3s} since={5}".\
-						format(r.TIME.strftime(Scanmon._TIMEFMT), r.NAME1, r.NAME2, r.NAME3, frq, 
+						format(r.TIME.strftime(Scanmon._TIMEFMT), r.NAME1, r.NAME2, r.NAME3, frq,
 						str(datetime.timedelta(seconds=dur)) if dur < Scanmon._EPOCH else 'Forever', r.CTCSS_DCS))
 			else:
 				self.logger.error("Unexpected GLG response: %s", r.status)
@@ -210,9 +210,9 @@ class Scanmon:
 
 if __name__ == '__main__':
 # Options definition
-	parser = argparse.ArgumentParser(description = "Monitor and control the scanner")
-	parser.add_argument("-s", "--scanner", 
-		required = False, 
+	parser = argparse.ArgumentParser(description = "Monitor and control the scanner", prog = "scanmon")
+	parser.add_argument("-s", "--scanner",
+		required = False,
 		action = 'append',
 		help="The USB serial device connected to the scanner. Usually /dev/ttyUSB0. May be specified multiple times. The first valid device will be used.")
 	parser.add_argument("-d", "--debug",
@@ -220,27 +220,28 @@ if __name__ == '__main__':
 		default = False,
 		action = 'store_true',
 		help="Debugging flag, default False")
-	colorhelp = "Color choices range from to 0 to 63"
+	colorhelp = " text color index (0 to 63)"
 	parser.add_argument("--color-norm",
 		required = False,
-		choices = range(64),
-		help = colorhelp,
+		help = "Normal" + colorhelp,
 		type = int)
 	parser.add_argument("--color-alert",
 		required = False,
-		choices = range(64),
-		help = colorhelp,
+		help = "Alert" + colorhelp,
 		type = int)
 	parser.add_argument("--color-warn",
 		required = False,
-		choices = range(64),
-		help = colorhelp,
+		help = "Warning" + colorhelp,
 		type = int)
 	parser.add_argument("--color-green",
 		required = False,
-		choices = range(64),
-		help = colorhelp,
+		help = "Green" + colorhelp,
 		type = int)
+	parser.add_argument("--database",
+		required = False,
+		default = "scanmon.db",
+		help = "File name for the database",
+		type = str)
 	args = parser.parse_args()
 
 	SCANNER = Scanmon(args)
