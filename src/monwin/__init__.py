@@ -13,10 +13,10 @@ import curses.textpad as textpad
 import logging
 from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
 
-NORM = 1
-ALERT = NORM + 1    # Color pair #2
-WARN = ALERT + 1    # color pair #3
-GREEN = WARN + 1    # Color pair #4
+NORM = 7
+ALERT = 15
+WARN = 2
+GREEN = 3
 COLORS = {"NORM":NORM, "ALERT":ALERT, "WARN":WARN, "GREEN":GREEN}
 
 class Monwin:
@@ -47,6 +47,7 @@ class Monwin:
 		def __init__(self, master, name,
 			height, width,
 			origin_y, origin_x,
+			colors,
 			overlay = False,
 			textinput = False,
 			borderleft = 1, borderright = 1, bordertop = 1, borderbottom = 1,
@@ -88,6 +89,7 @@ class Monwin:
 			self.border = border
 			self.hlinetop = hlinetop
 			self.hlinebottom = hlinebottom
+			self.colors = colors
 			self.logger.info(', '.join(("subwin %s: Initialized master=%s",
 				"height=%s", "width=%s", "origin_y=%s", "origin_x=%s",
 				"overlay=%s", "textinput=%s",
@@ -165,16 +167,26 @@ class Monwin:
 			target = self.window
 			target.scroll()
 			try:
-				target.addnstr(self.bottomline, self.firstcol, message, self.winwidth, curses.color_pair(COLORS[color]))
+				target.addnstr(self.bottomline,
+					self.firstcol,
+					message,
+					self.winwidth,
+					curses.color_pair(self.colors[color]))
 			except:
-				self.logger.error("subwin %s: addnstr(%s, %s, %s, %s, %s) failed", self.name, self.bottomline, self.firstcol, message, self.winwidth, curses.color_pair(COLORS[color]))
+				self.logger.error("subwin %s: addnstr(%s, %s, %s, %s, %s) failed",
+					self.name,
+					self.bottomline,
+					self.firstcol,
+					message,
+					self.winwidth,
+					curses.color_pair(self.colors[color]))
 				sys.exit(1)
 			target.noutrefresh()
 
-	def __init__(self, stdscr):
+	def __init__(self, stdscr, args):
 
 		"""Initialize the master screen (stdscr)
-		
+
 		Positional parameters:
 		stdscr -- The master curses screen
 
@@ -202,21 +214,28 @@ class Monwin:
 
 		self.main_panel = panel.new_panel(stdscr)
 # Set the color pairs
-		curses.init_pair(NORM, curses.COLOR_CYAN, curses.COLOR_BLACK)
-		curses.init_pair(ALERT, curses.COLOR_WHITE, curses.COLOR_RED)
-		curses.init_pair(WARN, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-		curses.init_pair(GREEN, curses.COLOR_GREEN, curses.COLOR_BLACK)
+		pn = 1
+		for bg in range(8):
+			for fg in range(8):
+				if not ( fg == curses.COLOR_WHITE and bg == curses.COLOR_BLACK ):
+					curses.init_pair(pn, fg, bg)
+					pn += 1
 
-		stdscr.attrset(curses.color_pair(NORM))
+		self.colors = dict(COLORS)
+		if args.color_norm is not None: self.colors["NORM"] = args.color_norm
+		if args.color_alert is not None: self.colors["ALERT"] = args.color_alert
+		if args.color_warn is not None: self.colors["WARN"] = args.color_warn
+		if args.color_green is not None: self.colors["GREEN"] = args.color_green
+		stdscr.attrset(curses.color_pair(self.colors["NORM"]))
 		stdscr.border()
 
-		self.msgwin = Monwin.Subwin(stdscr, "msg", MSGLINES, WINCOLS, 0, 0, hlinebottom = curses.ACS_HLINE)
+		self.msgwin = Monwin.Subwin(stdscr, "msg", MSGLINES, WINCOLS, 0, 0, self.colors, hlinebottom = curses.ACS_HLINE)
 		self.glgwin = Monwin.Subwin(stdscr, "glg",
-			GLGLINES, WINCOLS, MSGLINES, 0, hlinebottom = curses.ACS_HLINE, bordertop = 0)
+			GLGLINES, WINCOLS, MSGLINES, 0, self.colors, hlinebottom = curses.ACS_HLINE, bordertop = 0)
 		self.respwin = Monwin.Subwin(stdscr, "resp",
-			RESPLINES, WINCOLS, MSGLINES + GLGLINES, 0, hlinebottom = curses.ACS_HLINE, bordertop = 0)
+			RESPLINES, WINCOLS, MSGLINES + GLGLINES, 0, self.colors, hlinebottom = curses.ACS_HLINE, bordertop = 0)
 		self.cmdwin = Monwin.Subwin(stdscr, "cmd",
-			CMDLINES, WINCOLS, MSGLINES + GLGLINES + RESPLINES, 0, textinput = True, bordertop = 0)
+			CMDLINES, WINCOLS, MSGLINES + GLGLINES + RESPLINES, 0, self.colors, textinput = True, bordertop = 0)
 		self.homepos = (self._mainlines - 2, 1)
 		stdscr.move(*self.homepos)
 

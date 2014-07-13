@@ -76,7 +76,8 @@ class Scanmon:
 			self.lastid = id
 
 
-	def __init__(self, scandevice):
+	def __init__(self, args):
+		self._args = args
 		self.logger = logging.getLogger()
 		self.logger.setLevel(LINFO)
 		lfh = logging.FileHandler('scanmon.log')
@@ -85,13 +86,11 @@ class Scanmon:
 		lfh.setFormatter(lfmt)
 		self.logger.addHandler(lfh)
 		self.logger.info("Scanmon initializing")
-		self.scanner = Scanner(scandevice)
+		self.scanner = Scanner(self._args.scanner)
 		self.Running = False
 		self.glginfo = Scanmon.GLGinfo()
 		self.autocmd = False
-
-	def setDebug(self, debug):
-		if debug: self.logger.setLevel(LDEBUG)
+		if self._args.debug: self.logger.setLevel(LDEBUG)
 		else: self.logger.setLevel(LINFO)
 
 	def f_cmdin(self):
@@ -134,7 +133,7 @@ class Scanmon:
 		"""Proccess a request to send a scanner command."""
 		if len(cmd) > 1:
 			r = self.scanner.command(cmd[1].upper())
-			self.monwin.putline('resp', '{}: {}'.format(r.CMD, r.response))
+			self.monwin.putline('resp', '{}: {}'.format(r.CMD, r.display(r)))
 		else:
 			self.monwin.message('No scanner command found.')
 
@@ -164,12 +163,12 @@ class Scanmon:
 				self.monwin.message('Unknown command: "{}"'.format(command))
 				self.logger.warning('cmd: Unknown command: %s', command)
 
-	def main(self, stdscr):
+	def main(self, stdscr, args):
 		"""Initialize the curses window, initialize and start the threads
 		Read and process commands from the monitor window.
 		"""
 
-		self.monwin = Monwin(stdscr)
+		self.monwin = Monwin(stdscr, args)
 
 # Build the queues, use an arbitrary 10 as the maxsize
 		MAXSIZE = 10
@@ -221,12 +220,32 @@ if __name__ == '__main__':
 		default = False,
 		action = 'store_true',
 		help="Debugging flag, default False")
+	colorhelp = "Color choices range from to 0 to 63"
+	parser.add_argument("--color-norm",
+		required = False,
+		choices = range(64),
+		help = colorhelp,
+		type = int)
+	parser.add_argument("--color-alert",
+		required = False,
+		choices = range(64),
+		help = colorhelp,
+		type = int)
+	parser.add_argument("--color-warn",
+		required = False,
+		choices = range(64),
+		help = colorhelp,
+		type = int)
+	parser.add_argument("--color-green",
+		required = False,
+		choices = range(64),
+		help = colorhelp,
+		type = int)
 	args = parser.parse_args()
 
-	SCANNER = Scanmon(args.scanner)
-	SCANNER.setDebug(args.debug)
+	SCANNER = Scanmon(args)
 
-	curses.wrapper(SCANNER.main)
+	curses.wrapper(SCANNER.main, args)
 	SCANNER.close()
 
 

@@ -19,7 +19,6 @@ def gendecode(response):
 		var = response.varlist[i] if i < len(response.varlist) else 'VAR'
 		setattr(response, var, v)
 
-
 def gendisplay(response):
 	"""Generalized display. Just assemble the parts."""
 	try:

@@ -33,8 +33,8 @@ def display(response):
 	try:
 		for i in range(1, len(response.DSP_FORM) + 1):
 			seed.append("L{0}:{{L{0}_CHAR}}".format(i))
-		rval = ', '.join(seed).format_map(response)
+		rval = ', '.join(seed).format_map(response.__dict__)
 	except Exception as e:
-		rval = '?'
+		rval = '? ' + repr(e)
 
 	return rval
