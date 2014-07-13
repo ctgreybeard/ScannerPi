@@ -1,7 +1,7 @@
 """A class and methods to control the Uniden BCD996XT scanner.
 
-Classes: 
-Scanner -- Defines data and control structures to control 
+Classes:
+Scanner -- Defines data and control structures to control
 """
 
 import serial
@@ -59,7 +59,7 @@ def _setio(ttyio):
 		termios.ONOCR | termios.OFILL | termios.OLCUC | termios.OPOST);
 
 	# No line processing:
-	# echo off, echo newline off, canonical mode off, 
+	# echo off, echo newline off, canonical mode off,
 	# extended input processing off, signal chars off
 
 	attrs[lflag] &= ~(termios.ECHO | termios.ECHONL | termios.ICANON | termios.IEXTEN | termios.ISIG);
@@ -145,7 +145,7 @@ class Scanner:
 		self._serscanner.flushInput()
 		self._serscanner.flushOutput()
 
-		self._scanio = io.TextIOWrapper(io.BufferedRWPair(self._serscanner, self._serscanner), 
+		self._scanio = io.TextIOWrapper(io.BufferedRWPair(self._serscanner, self._serscanner),
 			errors = _ENCERRORS, encoding = _ENCODING, newline = _NEWLINE)
 		for c in ('MDL', 'VER'):
 			r = self.command(c)
@@ -171,7 +171,7 @@ class Scanner:
 				response = response.rstrip(_NEWLINE)
 
 		return response
-		
+
 	def writeline(self, line):
 		"""Write a line to the scanner.
 		Note that this is a blocking write but there should be no reason for it to block.
@@ -185,7 +185,7 @@ class Scanner:
 			self._serscanner.flushOutput()
 
 		return written + 1
-		
+
 	def command(self, cmdline):
 		"""Send one command, read the response, apply formatting and return the result."""
 		with self.iolock:

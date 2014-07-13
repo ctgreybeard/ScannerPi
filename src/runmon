@@ -2,7 +2,7 @@
 
 [[ -f scanmon.log ]] && rm scanmon.log
 
-python3 scanmon.py $* 2>error.log
+python3 -m scanmon $* 2>error.log
 stty sane		# Just in case
 
 logs=()
