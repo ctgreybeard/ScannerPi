@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+"""The main scanmon code. Evertything begines here."""
 
 import sys
 import time
