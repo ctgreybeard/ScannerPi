@@ -14,6 +14,7 @@ import queue
 from collections import deque
 import logging
 from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
+import re
 
 # Our own definitions
 from .scanner import Scanner
@@ -27,6 +28,13 @@ class Scanmon:
 	_TIMEFMT = '%H:%M:%S'
 	_GLGTIME = 0.5	# Half second
 	_EPOCH = 3600 * 24 * 356	# A year of seconds
+	_DEFBASEVOL = '100'
+	_ABSVOL = {'normal': 0, 'low': -3, 'verylow': -6, 'high': 3, 'veryhigh': 6}	# Adjustments from basevolume (units = dB)
+	_RELVOL = {'down': -3, 'up': 3}		# Names for relative adjustments
+# NOTE: For the Wolfson card the adjusments are amplified: 3dB+ goes up 6dB, 3+ goes up 3dB. This is a bug but I don't
+#		know who to blame. 3+ should go up 3 UNITS which is 1.5dB, etc.
+	_RELBROKEN = True
+	_VOLALIAS = {'norm':'normal', 'vlow':'verylow', 'hi':'high', 'vhigh':'veryhigh', 'vhi':'veryhigh', 'dn':'down'}
 
 # Inner class for GLG monitoring
 	class GLGinfo:
@@ -129,6 +137,118 @@ class Scanmon:
 			self.logger.exception('do_glg: Error processing "%s"', r.response)
 			self.monwin.message('{}: Error processing GLG response, see log'.format(time.strftime(Scanmon._TIMEFMT)))
 
+	def init_vol(self, args):
+		self.VOLRE = re.compile(r'(?P<value>(?:[+-])?\d+(?:\.\d+)?)(?P<db>db)?(?P<trail>[+-]?)', re.I)
+		basevol = self.VOLRE.search(args.basevolume)
+		self.audiocard = args.card
+		self.volcontrol = args.volcontrol
+		if basevol and basevol.group('trail') != '':
+			self.logger.error('basevolume cannot be relative (%s)', Scanmon._DEFBASEVOL)
+			basevol = None
+		if not basevol:
+			self.logger.error('Invalid basevolume (%s), using %s', args.basevolume, Scanmon._DEFBASEVOL)
+			basevol = self.VOLRE.search(Scanmon._DEFBASEVOL)
+		assert basevol is not None, "Unable to parse basevolume. Tried '{}' and '{}'".format(args.basevolume, Scanmon._DEFBASEVOL)
+		basevol = basevol.groupdict('')
+		self.USEdB = basevol['db'] != ''
+		try:
+			basevalue = float(basevol['value']) if self.USEdB else int(basevol['value'])
+		except:
+			self.logger.error("Error converting %s", basevol['value'])
+			basevalue = int(Scanmon._DEFBASEVOL)
+			self.USEdB = False
+		self.voltable = {}
+		if self.USEdB:
+			factor = 1
+			valstring = "{val:.1f}{db:s}"
+		else:
+			factor = args.dbfactor
+			valstring = "{val:d}{db:s}"
+		for k, v in Scanmon._ABSVOL.items():
+			self.voltable[k] = valstring.format(val = basevalue + (v * factor), db = 'dB' if self.USEdB else '')
+		for k, v in Scanmon._RELVOL.items():
+			rv = v / factor if Scanmon._RELBROKEN else v
+			self.voltable[k] = valstring.format(val = abs(rv), db = '+' if rv >= 0 else '-')
+		for k,v in Scanmon._VOLALIAS.items():
+			if v in self.voltable: self.voltable[k] = self.voltable[v]	# For convenience
+		if args.volume:
+			for vset in args.volume:
+				k, p, v = vset.partition(':')
+				self.voltable[k] = v
+		self.logger.info("Volume table initialized to: %r", self.voltable)
+
+	def do_amixer(self, cmd, args = None):
+		command = ['amixer']
+		if self.audiocard:
+			command.append('-D' + self.audiocard)
+		command.append('--')
+		command.append(cmd)
+		command.append(self.volcontrol)
+		if args:
+			command.extend(args)
+		try:
+			resp = subprocess.check_output(command,
+				stderr = subprocess.STDOUT,
+				universal_newlines = True).splitlines()
+			self.logger.debug("amixer response: %r", resp)
+		except subprocess.CalledProcessError as e:
+			self.logger.exception("%s command returned %s: :%s", e.cmd, e.returncode, e.output)
+			self.monwin.message("Error getting/setting volume. See log.")
+			resp = None
+
+		return resp
+
+	def _amixer_resp(self, resp):
+		vline = resp[-1]
+		vline = vline[vline.index(':'):]
+		self.monwin.putline('resp', "Vol{}".format(vline))
+
+	def _vol_help(self):
+		help = \
+"""Usage: vol[ume] [vol] ['mute'|'unmute']
+     vol = A volume expression, relative volume expression or one of the keywords below
+
+Keywords:
+""".splitlines()
+		hline = ""
+		packing = 4
+		for eo, k in enumerate(self.voltable.keys(), start = 1):
+			hline += "{key:>8s}: {val:<8s}".format(key = k, val = self.voltable[k])
+			if eo % packing == 0:
+				help.append(hline)
+				hline = ''
+			else:
+				hline += ", "
+		if hline != '': help.append(hline)
+		help[-1] = help[-1].rstrip(", ")	# If there is extra
+		for l in help:
+			self.monwin.putline('resp', l)
+
+	def do_mute(self, command, cmd):
+		self.do_vol('vol ' + cmd[0], ['vol', cmd[0]])
+
+	def do_vol(self, command, cmd):
+		if len(cmd) > 1:
+			cmds = cmd[1].split()
+			newvol = self.VOLRE.search(cmds[0])
+			if newvol is None:		# Not a valid volume, maybe a keyword?
+				if cmds[0] in self.voltable:	# It's one of our keywords
+					cmds[0] = self.voltable[cmds[0]]
+				elif cmds[0] in ('mute', 'unmute'):	# One of these?
+					pass							# Yes, that's OK
+				else:
+					cmds = None		# Don't know, send help
+			if cmds:
+				resp = self.do_amixer('sset', args = cmds)
+				if resp:
+					self._amixer_resp(resp)
+			else:
+				self._vol_help()
+		else:
+			resp = self.do_amixer('sget')
+			if resp:
+				self._amixer_resp(resp)
+
 	def do_cmd(self, command, cmd):
 		"""Proccess a request to send a scanner command."""
 		if len(cmd) > 1:
@@ -177,6 +297,12 @@ class Scanmon:
 		self.q_commands['quit'] = self.do_quit	# We know who wants to see this
 		self.q_commands['cmd'] = self.do_cmd	# We know who wants to see this
 		self.q_commands['autocmd'] = self.do_autocmd	# We know who wants to see this
+		self.q_commands['vol'] = self.do_vol	# volume setting
+		self.q_commands['volume'] = self.do_vol	# an alias
+		self.q_commands['mute'] = self.do_mute	# A convenience command
+		self.q_commands['unmute'] = self.do_mute	# A convenience command
+
+		self.init_vol(args)			# Allow the vol command to see the args
 
 		self.Running = True
 		self.send_glg = True
@@ -242,6 +368,33 @@ if __name__ == '__main__':
 		default = "scanmon.db",
 		help = "File name for the database",
 		type = str)
+	parser.add_argument("--card",
+		required = False,
+		help = "The card used by the 'vol' command.This is sent verbatim the to 'amixer' command as '-c[card]'")
+	parser.add_argument("--volcontrol",
+		required = False,
+		type = str,
+		default = "HPOUT2 Digital",
+		help = "The simple mixer control for setting volume.")
+	parser.add_argument("--basevolume",
+		required = False,
+		default = Scanmon._DEFBASEVOL,
+		type = str,
+		help = "The setting for the 'norm' volume setting. Other settings go up or down from this. May be set in units or dB.")
+	parser.add_argument("--volume",
+		required = False,
+		action = 'append',
+		type = str,
+		help = "A volume point given as 'name:set' (ex. vlow:90 -or- norm:-15dB). These are merged with the standard settings (verylow/vlow, low, normal/norm, high/hi, veryhigh/vhi)")
+	parser.add_argument("--vstep",
+		required = False,
+		default = None,
+		help = "Step difference between settings (i.e. 'norm' to 'high', etc.) Defaults to 3dB or 6 units.")
+	parser.add_argument("--dbfactor",
+		required = False,
+		default = 2,
+		type = int,
+		help = "Multiplication factor to change dB to UNITs")
 	args = parser.parse_args()
 
 	SCANNER = Scanmon(args)
