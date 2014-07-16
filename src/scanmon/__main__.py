@@ -211,9 +211,15 @@ class Scanmon:
 Keywords:
 """.splitlines()
 		hline = ""
-		packing = 4
+		dispfmt = "{key:>8s}: {val:<8s}"
+		rwin = self.monwin.respwin
+		avail = rwin.width - rwin.borderright - rwin.borderleft
+		cwidth = len(dispfmt.format(key = "key", val = "val"))	# Calculate the absolute column width
+		avail -= cwidth * 2 + 3	# Minus the first and last colomns
+		packing = int(avail / ( cwidth + 2)) + 2	# Middle columns have ', '
+
 		for eo, k in enumerate(self.voltable.keys(), start = 1):
-			hline += "{key:>8s}: {val:<8s}".format(key = k, val = self.voltable[k])
+			hline += dispfmt.format(key = k, val = self.voltable[k])
 			if eo % packing == 0:
 				help.append(hline)
 				hline = ''
