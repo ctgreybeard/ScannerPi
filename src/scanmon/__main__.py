@@ -20,6 +20,7 @@ import re
 from .scanner import Scanner
 from .scanner.formatter import Response
 from .monwin import Monwin
+from glgmonitor import GLGMonitor
 
 class Scanmon:
 
@@ -36,53 +37,6 @@ class Scanmon:
 	_RELBROKEN = True
 	_VOLALIAS = {'norm':'normal', 'vlow':'verylow', 'hi':'high', 'vhigh':'veryhigh', 'vhi':'veryhigh', 'dn':'down'}
 
-# Inner class for GLG monitoring
-	class GLGinfo:
-		"""Class to hold monitoring info for GLG monitoring."""
-
-		IDLE = 15.0		# 15 seconds between transmissions is a new transmission
-
-# Class method
-		def id(r):
-			return '-'.join((r.NAME1, r.NAME2, r.NAME3))
-
-		def __init__(self):
-			self.lastseen = {}
-			self.lastid = ''
-			self.lastsql = False
-			self.lasttime = time.time()
-
-		def logoff(self):
-			"""Log a squelch off event"""
-			if self.lastsql == True:
-				self.loglast()
-
-		def logon(self, r):
-			id = Scanmon.GLGinfo.id(r)
-			now = time.time()
-			if id != self.lastid or now - self.lasttime > Scanmon.GLGinfo.IDLE:
-				self.loglast()
-				self.logthis(id, now)
-			self.lasttime = now
-
-		def logit(self, r):
-			self.rval = False	# Assume we don't print this
-			heard = r.SQL == '1' and r.MUT == '0'
-			if heard:
-				self.logon(r)
-			else:
-				self.logoff()
-			self.lastsql = bool(r.SQL)
-			return self.rval
-
-		def loglast(self):
-			self.lastseen[self.lastid] = self.lasttime
-
-		def logthis(self, id, now):
-			self.rval = now - ( self.lastseen[id] if id in self.lastseen else 0 )
-			self.lastseen[id] = now
-			self.lastid = id
-
 
 	def __init__(self, args):
 		self._args = args
@@ -96,7 +50,7 @@ class Scanmon:
 		self.logger.info("Scanmon initializing")
 		self.scanner = Scanner(self._args.scanner)
 		self.Running = False
-		self.glginfo = Scanmon.GLGinfo()
+		self.glgmonitor = GLGMonitor()
 		self.autocmd = False
 		if self._args.debug: self.logger.setLevel(LDEBUG)
 		else: self.logger.setLevel(LINFO)
@@ -121,16 +75,7 @@ class Scanmon:
 			self._lastcheck = r.response
 		try:
 			if r.status == Response.RESP:
-				dur = int(self.glginfo.logit(r))
-				if bool(dur):
-					try:
-						frq = float(r.FRQ_TGID)
-					except ValueError:
-						frq = decimal.Decimal('NaN')
-					self.monwin.putline('glg',
-						"{0}: Sys={1:.<16s}|Grp={2:.<16s}|Chan={3:.<16s}|Freq={4:#9.4f}|C/D={6:>3s} since={5}".\
-						format(r.TIME.strftime(Scanmon._TIMEFMT), r.NAME1, r.NAME2, r.NAME3, frq,
-						str(datetime.timedelta(seconds=dur)) if dur < Scanmon._EPOCH else 'Forever', r.CTCSS_DCS))
+				self.glgmonitor.process(r)
 			else:
 				self.logger.error("Unexpected GLG response: %s", r.status)
 		except:
@@ -334,7 +279,7 @@ Keywords:
 				pass
 			time.sleep(0.1)
 		self.logger.debug("%d threads: %s", threading.active_count(), list(threading.enumerate()))
-		self.logger.debug("glginfo.lastseen=%s", self.glginfo.lastseen)
+		self.logger.debug("glgmonitor.lastseen=%s", self.glgmonitor.lastseen)
 
 	def close(self):
 		self.scanner.close()
