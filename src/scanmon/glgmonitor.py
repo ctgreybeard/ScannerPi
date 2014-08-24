@@ -1,17 +1,16 @@
 '''GLGMonitor - Processing for GLG monitor
 '''
 
-from datetime import datetime, timedelta
-from time import time
+from datetime import datetime as DateTime, timedelta as TimeDelta
 from .scanner.formatter import Response
-from .receivingstate import ReceivingState as State
+from .receivingstate import ReceivingState
 
 class Reception:
 	"""Holds information related to a single reception"""
 
 	def __init__(self, glgresp):
 		self.Starttime = glgresp.TIME
-		self.Duration =0.0
+		self.Duration = 0.0
 		self.System = glgresp.NAME1
 		self.Group = glgresp.NAME2
 		self.Channel = glgresp.NAME3
@@ -22,11 +21,12 @@ class Reception:
 		self.SystemTag = glgresp.SYS_TAG
 		self.ChannelTag = glgresp.CHAN_TAG
 		self.P25NAC = glgresp.P25NAC
-	
+		self.lastActive = True
+
 	@property
 	def sys_id(self):
 		return '-'.join((self.System, self.Group, self.Channel,))
-	
+
 	def __eq__(self, other):
 		if isinstance(other, Reception):
 			return self.sys_id == other.sys_id and self.Starttime == other.Starttime
@@ -34,44 +34,71 @@ class Reception:
 			raise ValueError
 
 # Class for GLG monitoring
-class GLGMonitor:
+class GLGMonitor(ReceivingState):
 	"""Class to hold monitoring info for GLG monitoring."""
 
 	IDLE = 15.0		# 15 seconds between transmissions is a new transmission
 	TAGNONE = -1	# System and Channel tag NONE
 
 	@property
-	def sysId(self):
+	def sys_id(self):
 		"""Get the unique ID for this System/Group.Channel combination"""
-		return '-'.join((self.systemName, self.groupName, self.channelName))
+		if self.isActive:
+			return '-'.join((self.systemName, self.groupName, self.channelName))
+		else:
+			return None
 
 	@property
 	def isActive(self):
 		"""Get the transmission status.
 
 		Checks the Squelch, returns True on open Squelch"""
-		return self.squelch == '1'
+		return self.squelch
 
-	def __init__(self):
+	def __init__(self, monwin = None, db = None):
 		"""Initialize the instance"""
+		super().__init__()
 		self.lastseen = {}
 		self.lastid = ''
 		self.lastactive = 1.0
-		self.squelch = ''
-		self.state = State.IDLE
+		self.squelch = False
+		self.monwin = monwin
+		self.reception = None
+		self.state = GLGMonitor.IDLE
+		self.db = db
 
-	def createReception(self):
+	def createReception(self, glgresp):
 		"""Create a Reception instance"""
-		self.state = State.RECEIVING
+		self.state = GLGMonitor.RECEIVING
 		self.reception = Reception(glgresp)
+		self.scrollWin()
+		self.writeWin()
 
 	def accumulateTime(self):
 		"""Accumulate time in the current reception, set state"""
-		pass
+		samesystem = self.sys_id == self.reception.sys_id
+
+		if self.reception.lastActive or samesystem:
+			self.reception.Duration = (self.receiveTime - self.reception.Starttime).total_seconds()
+			self.writeWin()
+
+		self.reception.lastActive = self.isActive
+
+		if self.isActive:
+			self.state = GLGMonitor.RECEIVING
+			if not samesystem:
+				self.writeDatabase()
+		else:
+			self.state = GLGMonitor.TIMEOUT
 
 	def writeDatabase(self):
 		"""Write database record, set state"""
-		pass
+		if self.isActive:
+			self.createReception(self.glgresp)
+			self.state = GLGMonitor.RECEIVING
+		else:
+			self.reception = None
+			self.state = GLGMonitor.IDLE
 
 	def scrollWin(self):
 		"""Scroll the output window if necessary"""
@@ -106,23 +133,22 @@ class GLGMonitor:
 
 	def process(self, glgresp):
 		"""Process a GLG response"""
-		parseResponse(glgresp)
+		self.glgresp = glgresp
+		parseResponse(self.glgresp)
 		if self.isActive:
 			self.lastActive = glgresp.TIME
-		if self.state == State.IDLE:
-			if self.isactive:
-				createReception()
+		if self.isIdle:
+			if self.isActive:
+				createReception(self.glgresp)
 			else:
 				pass
-		elif self.state == State.RECEIVING:
+		elif self.isReceiving:
 			accumulateTime()
-		elif self.state == State.TIMEOUT:
-			timeExceeded = self.lastactive - time() > GLGMonitor.IDLE
+		elif self.isTimeout:
+			timeExceeded = (self.lastActive - DateTime.now()).total_seconds() > GLGMonitor.IDLE
 			if self.isActive or not timeExceeded:
 				accumulateTime()
 			elif timeExceeded:
 				writeDatabase()
-			else:
-				pass
 		else:
 			raise RuntimeError("Invalid GLG monitor state: {}".format(self.state))

@@ -1,5 +1,4 @@
 '''State -- State control
-TESTING VERSION
 '''
 
 """State constants"""

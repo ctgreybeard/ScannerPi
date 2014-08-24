@@ -50,7 +50,6 @@ class Scanmon:
 		self.logger.info("Scanmon initializing")
 		self.scanner = Scanner(self._args.scanner)
 		self.Running = False
-		self.glgmonitor = GLGMonitor()
 		self.autocmd = False
 		if self._args.debug: self.logger.setLevel(LDEBUG)
 		else: self.logger.setLevel(LINFO)
@@ -252,6 +251,7 @@ Keywords:
 		self.q_commands['volume'] = self.do_vol	# an alias
 		self.q_commands['mute'] = self.do_mute	# A convenience command
 		self.q_commands['unmute'] = self.do_mute	# A convenience command
+		self.glgmonitor = GLGMonitor(monwin = self.monwin.glgwin)
 
 		self.init_vol(args)			# Allow the vol command to see the args
 
