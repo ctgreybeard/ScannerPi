@@ -11,28 +11,28 @@ class ReceivingState:
 	(IDLE,  RECEIVING,  TIMEOUT) = (_idle , _receiving , _timeout)
 
 	@property
-	def isidle(self):
+	def isIdle(self):
 		return self.state == ReceivingState.IDLE
 
 	@property
-	def isreceiving(self):
+	def isReceiving(self):
 		return self.state == ReceivingState.RECEIVING
 
 	@property
-	def istimeout(self):
+	def isTimeout(self):
 		return self.state == ReceivingState.TIMEOUT
 
 	@property
 	def state(self):
 		'''Reception state'''
-		return self._state
+		return self.__state
 
-	_states = frozenset((IDLE, RECEIVING, TIMEOUT,))
+	__states = frozenset((IDLE, RECEIVING, TIMEOUT,))
 
 	@state.setter
 	def state(self, newstate):
-		if newstate in ReceivingState._states:
-			self._state = newstate
+		if newstate in ReceivingState.__states:
+			self.__state = newstate
 		else:
 			raise ValueError('Invalid Receiving State: %', newstate)
 
@@ -40,10 +40,10 @@ class ReceivingState:
 		self.state = initialstate if not initialstate is None else ReceivingState.IDLE
 
 	def __str__(self):
-		return self._state
+		return self.__state
 
 	def __repr__(self):
-		return "{0}({0}.{1})".format(self.__class__.__name__, self._state)
+		return "{0}({0}.{1})".format(self.__class__.__name__, self.__state)
 
 def _runTests():
 	'''Testing code'''
@@ -83,19 +83,19 @@ def _runTests():
 		print('  Test bad state exception 2 OK')
 
 	newstate = mystate.state
-	if newstate != ReceivingState.TIMEOUT or not mystate.istimeout:
+	if newstate != ReceivingState.TIMEOUT or not mystate.isTimeout:
 		print('**ValueError test 2 failed. State: {}'.format(newstate))
 	else:
 		print('  ValueError test 2 complete.')
 
 	print("--State checking pseudo attributes, initialization")
-	testers = ((ReceivingState.IDLE, (True, False, False), 'Idle'),
-		(ReceivingState.RECEIVING, (False, True, False), 'Receiving'),
-		(ReceivingState.TIMEOUT, (False, False, True), 'Timeout'))
+	testers = ((ReceivingState.IDLE, (True, False, False), 'Idle'), 
+		(ReceivingState.RECEIVING, (False, True, False), 'Receiving'), 
+		(ReceivingState.TIMEOUT, (False, False, True), 'Timeout')) 
 
 	for test in testers:
 		mystate = ReceivingState(test[0])
-		tr = (mystate.isidle, mystate.isreceiving, mystate.istimeout)
+		tr = (mystate.isIdle, mystate.isReceiving, mystate.isTimeout)
 		if test[1] == tr:
 			print("  {} initial test OK".format(test[2]))
 		else:
@@ -104,7 +104,7 @@ def _runTests():
 	print("--State checking pseudo attributes, setting")
 	for test in testers:
 		mystate.state = test[0]
-		tr = (mystate.isidle, mystate.isreceiving, mystate.istimeout)
+		tr = (mystate.isIdle, mystate.isReceiving, mystate.isTimeout)
 		if test[1] == tr:
 			print("  {} set test OK".format(test[2]))
 		else:
