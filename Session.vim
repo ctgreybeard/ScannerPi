@@ -93,7 +93,7 @@ setlocal foldcolumn=0
 setlocal foldenable
 setlocal foldexpr=0
 setlocal foldignore=#
-setlocal foldlevel=1
+setlocal foldlevel=4
 setlocal foldmarker={{{,}}}
 setlocal foldmethod=indent
 setlocal foldminlines=1
@@ -156,62 +156,18 @@ setlocal nowinfixheight
 setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
-9
-normal zo
-12
-normal zo
-31
-normal zo
-32
-normal zo
 38
 normal zo
-45
-normal zo
-47
-normal zo
-49
-normal zo
-53
-normal zo
-59
-normal zo
-71
-normal zo
-78
-normal zo
-82
-normal zo
-88
-normal zo
-90
-normal zo
-92
-normal zo
-95
-normal zo
-97
-normal zo
-100
-normal zo
-112
-normal zo
-135
+118
 normal zo
 141
 normal zo
-142
-normal zo
-148
-normal zo
-154
-normal zo
-let s:l = 104 - ((22 * winheight(0) + 24) / 48)
+let s:l = 1 - ((0 * winheight(0) + 24) / 48)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-104
-normal! 043l
+1
+normal! 0
 tabedit scanmon/receivingstate.py
 set splitbelow splitright
 set nosplitbelow
@@ -326,11 +282,11 @@ normal zo
 normal zo
 48
 normal zo
-let s:l = 2 - ((1 * winheight(0) + 24) / 48)
+let s:l = 36 - ((35 * winheight(0) + 24) / 48)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-2
+36
 normal! 0
 tabedit scanmon/monwin.py
 set splitbelow splitright
@@ -377,7 +333,7 @@ setlocal foldcolumn=0
 setlocal foldenable
 setlocal foldexpr=0
 setlocal foldignore=#
-setlocal foldlevel=0
+setlocal foldlevel=6
 setlocal foldmarker={{{,}}}
 setlocal foldmethod=indent
 setlocal foldminlines=1
@@ -387,8 +343,8 @@ setlocal formatexpr=
 setlocal formatoptions=tcq
 setlocal formatlistpat=^\\s*\\d\\+[\\]:.)}\\t\ ]\\s*
 setlocal grepprg=
-setlocal iminsert=2
-setlocal imsearch=2
+setlocal iminsert=0
+setlocal imsearch=0
 setlocal include=
 setlocal includeexpr=
 setlocal indentexpr=
@@ -440,12 +396,22 @@ setlocal nowinfixheight
 setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
-let s:l = 1 - ((0 * winheight(0) + 24) / 48)
+24
+normal zo
+38
+normal zo
+48
+normal zo
+105
+normal zo
+188
+normal zo
+let s:l = 108 - ((29 * winheight(0) + 24) / 48)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-1
-normal! 0
+108
+normal! 03l
 tabedit scanmon/__main__.py
 set splitbelow splitright
 set nosplitbelow
@@ -491,7 +457,7 @@ setlocal foldcolumn=0
 setlocal foldenable
 setlocal foldexpr=0
 setlocal foldignore=#
-setlocal foldlevel=0
+setlocal foldlevel=5
 setlocal foldmarker={{{,}}}
 setlocal foldmethod=indent
 setlocal foldminlines=1
@@ -501,8 +467,8 @@ setlocal formatexpr=
 setlocal formatoptions=tcq
 setlocal formatlistpat=^\\s*\\d\\+[\\]:.)}\\t\ ]\\s*
 setlocal grepprg=
-setlocal iminsert=2
-setlocal imsearch=2
+setlocal iminsert=0
+setlocal imsearch=0
 setlocal include=
 setlocal includeexpr=
 setlocal indentexpr=
@@ -554,12 +520,20 @@ setlocal nowinfixheight
 setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
-let s:l = 1 - ((0 * winheight(0) + 24) / 49)
+28
+normal zo
+69
+normal zo
+157
+normal zo
+237
+normal zo
+let s:l = 254 - ((19 * winheight(0) + 24) / 48)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-1
-normal! 0
+254
+normal! 057l
 tabedit scanmon/scanner/__init__.py
 set splitbelow splitright
 set nosplitbelow
@@ -729,7 +703,7 @@ setlocal formatexpr=
 setlocal formatoptions=tcq
 setlocal formatlistpat=^\\s*\\d\\+[\\]:.)}\\t\ ]\\s*
 setlocal grepprg=
-setlocal iminsert=2
+setlocal iminsert=0
 setlocal imsearch=2
 setlocal include=
 setlocal includeexpr=
@@ -782,16 +756,28 @@ setlocal nowinfixheight
 setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
+23
+normal zo
 31
 normal zo
 57
 normal zo
-let s:l = 1 - ((0 * winheight(0) + 24) / 48)
+81
+normal zo
+87
+normal zo
+88
+normal zo
+96
+normal zo
+119
+normal zo
+let s:l = 126 - ((51 * winheight(0) + 24) / 48)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-1
-normal! 0
+126
+normal! 02l
 tabedit scanmon/scanner/formatter/GLG.py
 set splitbelow splitright
 set nosplitbelow
@@ -1036,7 +1022,7 @@ exe s:l
 normal! zt
 46
 normal! 02l
-tabnext 2
+tabnext 1
 if exists('s:wipebuf')
   silent exe 'bwipe ' . s:wipebuf
 endif
