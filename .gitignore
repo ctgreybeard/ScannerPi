@@ -54,3 +54,4 @@ docs/_build/
 
 # Vim junk
 *.swp
+Session*.vim

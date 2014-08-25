@@ -71,8 +71,8 @@ class Monwin:
 			"""
 
 # Set up logging
-			self.logger = logging.getLogger().getChild(__name__)
-			self.logger.info('subwin %s: Initializing', name)
+			self.__logger = logging.getLogger().getChild(__name__)
+			self.__logger.info('subwin %s: Initializing', name)
 # Record the initial parameters
 			self.master = master
 			self.name = name
@@ -90,7 +90,7 @@ class Monwin:
 			self.hlinetop = hlinetop
 			self.hlinebottom = hlinebottom
 			self.colors = colors
-			self.logger.info(', '.join(("subwin %s: Initialized master=%s",
+			self.__logger.info(', '.join(("subwin %s: Initialized master=%s",
 				"height=%s", "width=%s", "origin_y=%s", "origin_x=%s",
 				"overlay=%s", "textinput=%s",
 				"borders=(%s,%s,%s,%s)", "border=%s",
@@ -106,7 +106,7 @@ class Monwin:
 # Create a dummy "master" window to hold the border
 					master = self.master.subwin(height, width, origin_y, origin_x)
 					master.border()
-					self.logger.info("subwin %s: non-overlay+border master at %s", self.name, (height, width, origin_y, origin_x))
+					self.__logger.info("subwin %s: non-overlay+border master at %s", self.name, (height, width, origin_y, origin_x))
 					origin_x = 0
 					origin_y = 0
 					borderleft = 1
@@ -124,7 +124,7 @@ class Monwin:
 					width - borderleft - borderright,
 					origin_y + bordertop,
 					origin_x + borderleft)
-				self.logger.info("subwin %s: subwindow at %s", self.name, (height - bordertop - borderbottom, width - borderleft - borderright, origin_y + bordertop, origin_x + borderleft))
+				self.__logger.info("subwin %s: subwindow at %s", self.name, (height - bordertop - borderbottom, width - borderleft - borderright, origin_y + bordertop, origin_x + borderleft))
 
 				self.window.leaveok(0)
 				self.bottomline = height - bordertop - borderbottom - 1
@@ -136,36 +136,39 @@ class Monwin:
 					try:
 						self.window.setscrreg(0, self.bottomline)
 					except:
-						self.logger.error("subwin %s: setscrreg(0, %s) failed.", self.name, self.bottomline)
+						self.__logger.error("subwin %s: setscrreg(0, %s) failed.", self.name, self.bottomline)
 
 				if hlinetop and bordertop:
 					master.hline(origin_y, borderleft, hlinetop, self.msgwidth)
-					self.logger.info("subwin %s: hlinetop at %s,%s", self.name, origin_y, borderleft)
+					self.__logger.info("subwin %s: hlinetop at %s,%s", self.name, origin_y, borderleft)
 
 				if hlinebottom and borderbottom:
 					bline = origin_y + height - 1
 					master.hline(bline, borderleft, hlinebottom, self.msgwidth)
-					self.logger.info("subwin %s: hlinebottom at %s,%s", self.name, origin_y, borderleft)
+					self.__logger.info("subwin %s: hlinebottom at %s,%s", self.name, origin_y, borderleft)
 
 			else:
 				raise NotImplementedError("Overlays still need to be done")
 
 			if textinput:
 				self.textbox = curses.textpad.Textbox(self.window)
-				self.logger.info("subwin %s: textbox set", self.name)
+				self.__logger.info("subwin %s: textbox set", self.name)
 			else:
 				self.textbox = None
 
-		def putline(self, message, color):
+		def putline(self, message, color = "NORM", scroll = True):
 			"""Scroll the window and write the message on the bottom line.
 
 			Positional parameters:
 			message -- The message (a string)
-			color -- The color of the message("NORM", "ALERT", "WARN", "GREEN")
+			color   -- The color of the message("NORM", "ALERT", "WARN", "GREEN")
+			scroll  -- Scroll window before writing
 			"""
-			self.logger.info("subwin %s: writing \"%s\"", self.name, message)
+			self.__logger.info("subwin %s: writing \"%s\"", self.name, message)
+			cy, cx = curses.getsyx()
 			target = self.window
-			target.scroll()
+			if scroll:
+				target.scroll()
 			try:
 				target.addnstr(self.bottomline,
 					self.firstcol,
@@ -173,7 +176,7 @@ class Monwin:
 					self.winwidth,
 					curses.color_pair(self.colors[color]))
 			except:
-				self.logger.error("subwin %s: addnstr(%s, %s, %s, %s, %s) failed",
+				self.__logger.error("subwin %s: addnstr(%s, %s, %s, %s, %s) failed",
 					self.name,
 					self.bottomline,
 					self.firstcol,
@@ -182,6 +185,8 @@ class Monwin:
 					curses.color_pair(self.colors[color]))
 				sys.exit(1)
 			target.noutrefresh()
+			curses.setsyx(cy, cx)
+			curses.doupdate()
 
 	def __init__(self, stdscr, args):
 
@@ -194,10 +199,10 @@ class Monwin:
 		"""
 
 # Set up logging
-		self.logger = logging.getLogger().getChild(__name__)
-		self.logger.info('monwin: Initializing')
+		self.__logger = logging.getLogger().getChild(__name__)
+		self.__logger.info('monwin: Initializing')
 		self._mainlines, self._maincols = stdscr.getmaxyx()
-		self.logger.info("monwin: Screen is %s lines, %s cols", self._mainlines, self._maincols)
+		self.__logger.info("monwin: Screen is %s lines, %s cols", self._mainlines, self._maincols)
 # Define window sizes lines and columns include border characters
 		MSGLINES = 4
 		RESPLINES = 10
@@ -252,10 +257,7 @@ class Monwin:
 		Keyword parameters:
 		color -- The color of the message("NORM", "ALERT", "WARN", "GREEN")
 		"""
-		cy, cx = curses.getsyx()
 		target = self.windows[window].putline(message, color)
-		curses.setsyx(cy, cx)
-		curses.doupdate()
 
 	def getline(self):
 		"""Get a line from the command window
