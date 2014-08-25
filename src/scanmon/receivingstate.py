@@ -5,6 +5,8 @@
 
 (_idle, _receiving, _timeout) = ('IDLE', 'RECEIVING', 'TIMEOUT')
 
+import logging
+
 class ReceivingState:
 
 	(IDLE,  RECEIVING,  TIMEOUT) = (_idle , _receiving , _timeout)
@@ -31,11 +33,15 @@ class ReceivingState:
 	@state.setter
 	def state(self, newstate):
 		if newstate in ReceivingState.__states:
+			if self.__state != newstate:
+				self.__logger.debug("state: %s->%s", self.__state, newstate)
 			self.__state = newstate
 		else:
-			raise ValueError('Invalid Receiving State: %', newstate)
+			raise ValueError('Invalid Receiving State: %s', newstate)
 
 	def __init__(self, initialstate = None):
+		self.__logger = logging.getLogger().getChild(__name__)
+		self.__state = '*INIT*'
 		self.state = initialstate if not initialstate is None else ReceivingState.IDLE
 
 	def __str__(self):
