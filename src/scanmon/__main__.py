@@ -18,7 +18,7 @@ import re
 
 # Our own definitions
 from .scanner import Scanner
-from .scanner.formatter import Response
+from .scanner.formatter import Response, ScannerDecodeError
 from .monwin import Monwin
 
 class Scanmon:
@@ -28,13 +28,14 @@ class Scanmon:
 	_TIMEFMT = '%H:%M:%S'
 	_GLGTIME = 0.5	# Half second
 	_EPOCH = 3600 * 24 * 356	# A year of seconds
-	_DEFBASEVOL = '100'
-	_ABSVOL = {'normal': 0, 'low': -3, 'verylow': -6, 'high': 3, 'veryhigh': 6}	# Adjustments from basevolume (units = dB)
+	_DEFBASEVOL = '-12.0dB'
+	_ABSVOL = {'normal': 0, 'low': -3, 'verylow': -6, 'veryverylow': -9, 'high': 3, 'veryhigh': 6}	# Adjustments from basevolume (units = dB)
 	_RELVOL = {'down': -3, 'up': 3}		# Names for relative adjustments
 # NOTE: For the Wolfson card the adjusments are amplified: 3dB+ goes up 6dB, 3+ goes up 3dB. This is a bug but I don't
 #		know who to blame. 3+ should go up 3 UNITS which is 1.5dB, etc.
-	_RELBROKEN = True
-	_VOLALIAS = {'norm':'normal', 'vlow':'verylow', 'hi':'high', 'vhigh':'veryhigh', 'vhi':'veryhigh', 'dn':'down'}
+# 8/25/2014: The newer code alleviates the problem.
+	_RELBROKEN = False
+	_VOLALIAS = {'norm':'normal', 'vlow':'verylow', 'vvlow': 'veryverylow', 'hi':'high', 'vhigh':'veryhigh', 'vhi':'veryhigh', 'dn':'down'}
 
 # Inner class for GLG monitoring
 	class GLGinfo:
@@ -138,7 +139,7 @@ class Scanmon:
 			self.monwin.message('{}: Error processing GLG response, see log'.format(time.strftime(Scanmon._TIMEFMT)))
 
 	def init_vol(self, args):
-		self.VOLRE = re.compile(r'(?P<value>(?:[+-])?\d+(?:\.\d+)?)(?P<db>db)?(?P<trail>[+-]?)', re.I)
+		self.VOLRE = re.compile(r'^(?P<value>(?:[+-])?\d+(?:\.\d+)?)(?P<db>db)?(?P<trail>[+-]?)$', re.I)
 		basevol = self.VOLRE.search(args.basevolume)
 		self.audiocard = args.card
 		self.volcontrol = args.volcontrol
@@ -163,7 +164,7 @@ class Scanmon:
 			valstring = "{val:.1f}{db:s}"
 		else:
 			factor = args.dbfactor
-			valstring = "{val:d}{db:s}"
+			valstring = "{val:g}{db:s}"
 		for k, v in Scanmon._ABSVOL.items():
 			self.voltable[k] = valstring.format(val = basevalue + (v * factor), db = 'dB' if self.USEdB else '')
 		for k, v in Scanmon._RELVOL.items():
@@ -258,8 +259,12 @@ Keywords:
 	def do_cmd(self, command, cmd):
 		"""Proccess a request to send a scanner command."""
 		if len(cmd) > 1:
-			r = self.scanner.command(cmd[1].upper())
-			self.monwin.putline('resp', '{}: {}'.format(r.CMD, r.display(r)))
+			try:
+				r = self.scanner.command(cmd[1].upper())
+				self.monwin.putline('resp', '{}: {}'.format(r.CMD, r.display(r)))
+			except ScannerDecodeError as e:
+				self.logger.error("do_cmd: Error response from scanner: cmd: %s, error: %s", cmd, e)
+				self.monwin.message("Error response from scanner: cmd: {}, error: {}".format(cmd, e))
 		else:
 			self.monwin.message('No scanner command found.')
 
