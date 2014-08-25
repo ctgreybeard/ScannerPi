@@ -58,6 +58,9 @@ class GLGMonitor(ReceivingState):
 	def __init__(self, monwin = None, db = None):
 		"""Initialize the instance"""
 		super().__init__()
+# Set up logging
+		self.logger = logging.getLogger().getChild(__name__)
+		self.logger.info(__class__.__name__+': Initializing')
 		self.lastseen = {}
 		self.lastid = ''
 		self.lastactive = 1.0
@@ -69,6 +72,7 @@ class GLGMonitor(ReceivingState):
 
 	def createReception(self, glgresp):
 		"""Create a Reception instance"""
+		self.logger.debug("createReception: new Reception-%", self.sys_id)
 		self.state = GLGMonitor.RECEIVING
 		self.reception = Reception(glgresp)
 		self.scrollWin()
@@ -77,6 +81,7 @@ class GLGMonitor(ReceivingState):
 	def accumulateTime(self):
 		"""Accumulate time in the current reception, set state"""
 		samesystem = self.sys_id == self.reception.sys_id
+		self.logger.debug("accumulateTime: system: %, samesystem: %, isActive: %", self.sys_id, samesystem, self.isActive)
 
 		if self.reception.lastActive or samesystem:
 			self.reception.Duration = (self.receiveTime - self.reception.Starttime).total_seconds()
@@ -93,6 +98,7 @@ class GLGMonitor(ReceivingState):
 
 	def writeDatabase(self):
 		"""Write database record, set state"""
+		self.logger.debug("writeDatabase: system: %", self.reception.sys_id)
 		if self.isActive:
 			self.createReception(self.glgresp)
 			self.state = GLGMonitor.RECEIVING
@@ -102,11 +108,11 @@ class GLGMonitor(ReceivingState):
 
 	def scrollWin(self):
 		"""Scroll the output window if necessary"""
-		pass
+		self.logger.debug("scrollWin: ")
 
 	def writeWin(self):
 		"""Write the current reception info to the window"""
-		pass
+		self.logger.debug("writeWin: system: %", self.sys_id)
 
 	def parseResponse(self, glgresp):
 		assert isinstance(glgresp, Response)
@@ -133,6 +139,7 @@ class GLGMonitor(ReceivingState):
 
 	def process(self, glgresp):
 		"""Process a GLG response"""
+		self.logger.debug("processing: %", glgrsp)
 		self.glgresp = glgresp
 		parseResponse(self.glgresp)
 		if self.isActive:
