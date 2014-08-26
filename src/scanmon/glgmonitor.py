@@ -1,7 +1,8 @@
 '''GLGMonitor - Processing for GLG monitor
 '''
 
-from datetime import datetime as DateTime, timedelta as TimeDelta
+from datetime import datetime, timedelta
+import decimal
 import logging
 from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
 from .scanner.formatter import Response
@@ -12,7 +13,7 @@ class Reception:
 
 	def __init__(self, glgresp):
 		self.Starttime = glgresp.TIME
-		self.Duration = 0.0
+		self.Duration = 0
 		self.System = glgresp.NAME1
 		self.Group = glgresp.NAME2
 		self.Channel = glgresp.NAME3
@@ -87,6 +88,11 @@ class GLGMonitor(ReceivingState):
 		self.__logger.debug("new Reception-%s", self.sys_id)
 		self.state = GLGMonitor.RECEIVING
 		self.reception = Reception(glgresp)
+		if self.reception.sys_id in self.lastseen:
+			self.reception.lastseen = self.lastseen[self.reception.sys_id]
+		else:
+			self.reception.lastseen = None
+		self.lastseen[self.reception.sys_id] = self.reception.Starttime
 		self.writeWin()
 
 	def accumulateTime(self):
@@ -95,7 +101,7 @@ class GLGMonitor(ReceivingState):
 		self.__logger.debug("system: %s, samesystem: %s, isActive: %s", self.sys_id, samesystem, self.isActive)
 
 		if self.reception.lastActiveState or samesystem:
-			self.reception.Duration = (self.receiveTime - self.reception.Starttime).total_seconds()
+			self.reception.Duration = (self.receiveTime - self.reception.Starttime).seconds
 			self.writeWin()
 
 		self.reception.lastActiveState = self.isActive
@@ -128,19 +134,33 @@ class GLGMonitor(ReceivingState):
 	def writeWin(self):
 		"""Write the current reception info to the window"""
 		self.__logger.debug("system: %s", self.reception.sys_id)
-# Temorary line for testing only
-		try:
-			frq = float(self.reception.Frequency_TGID)
-		except ValueError:
-			frq = decimal.Decimal('NaN')
-		self.monwin.putline("{time:s}: Sys={sys:.<16s}|Grp={grp:.<16s}|Chan={chn:.<16s}|Freq={frq:#9.4f}|C/D={ctc:>3s} dur={dur}".\
-			format(time=self.reception.Starttime.strftime(GLGMonitor._TIMEFMT),
-				sys=self.reception.System,
-				grp=self.reception.Group,
-				chn=self.reception.Channel,
-				frq=frq,
-				dur=int(self.reception.Duration),
-				ctc=self.reception.CTCSS_DCS), scroll = False)
+
+# Compute the static information string once and cache it
+		if not hasattr(self.reception, 'infocache'):
+# Compute the frequency or 'NaN'
+			with decimal.localcontext() as lctx:
+				lctx.traps[decimal.InvalidOperation] = False
+				frq = decimal.Decimal(self.reception.Frequency_TGID)
+
+# Compute the 'lastseen' value (HH:MM:SS)
+			if self.reception.lastseen:
+				d = self.reception.Starttime - self.reception.lastseen
+				lastseen = str(timedelta(d.days, d.seconds, 0))
+			else:
+				lastseen = '*Forever'
+			self.reception.infocache = \
+				"{time:s}: Sys={sys:.<16s}|Grp={grp:.<16s}|Chan={chn:.<16s}|Freq={frq:#9.4f}|C/D={ctc:>3s} last={last:>8s}".\
+					format(time=self.reception.Starttime.strftime(GLGMonitor._TIMEFMT),
+						sys=self.reception.System,
+						grp=self.reception.Group,
+						chn=self.reception.Channel,
+						frq=frq,
+						ctc=self.reception.CTCSS_DCS,
+						last=lastseen)
+		self.monwin.putline("{info:s}| dur={dur}".format(
+				dur=self.reception.Duration,
+				info = self.reception.infocache),
+			scroll = False)
 
 	def parseResponse(self, glgresp):
 		assert isinstance(glgresp, Response)
@@ -176,7 +196,7 @@ class GLGMonitor(ReceivingState):
 		elif self.isReceiving:
 			self.accumulateTime()
 		elif self.isTimeout:
-			timeExceeded = (DateTime.now() - self.reception.lastActiveTime).total_seconds() > self.IDLETIME
+			timeExceeded = (glgresp.TIME - self.reception.lastActiveTime).total_seconds() > self.IDLETIME
 			if timeExceeded:
 				self.__logger.debug("Timeout: %s", self.reception.sys_id)
 			if self.isActive or not timeExceeded:
