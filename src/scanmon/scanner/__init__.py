@@ -112,8 +112,8 @@ class Scanner:
 		"""
 
 # Initialize the logger
-		self.logger = logging.getLogger().getChild(__name__)
-		self.logger.info("Initializing scanner")
+		self.__logger = logging.getLogger().getChild(__name__)
+		self.__logger.info("Initializing scanner")
 		self.iolock = RLock()
 		if device is None:
 			devs = _DEVS
@@ -132,13 +132,13 @@ class Scanner:
 				pass
 
 		if self.device is None:
-			self.logger.critical("scanner: \"%s\" not found or not suitable", devs)
+			self.__logger.critical("scanner: \"%s\" not found or not suitable", devs)
 			raise IOError("\"{}\" not found or not suitable".format(devs))
 
 		try:
 			self._serscanner = serial.Serial(port = self.device, baudrate = _BAUDRATE, timeout = _TIMEOUT)
 		except serial.SerialException as serexcept:
-			self.logger.critical("scanner: \"%s\" not accessable", self.device)
+			self.__logger.critical("scanner: \"%s\" not accessable", self.device)
 			raise serexcept
 
 		_setio(self._serscanner)
