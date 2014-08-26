@@ -2,6 +2,9 @@
 
 *Top down (newest first) list of major changes*
 
+####15 Jul 2014
+Added 'vol' command and associated commands and options.
+
 ####6 Jul 2014
 Scanner operational and initial test OK
 
