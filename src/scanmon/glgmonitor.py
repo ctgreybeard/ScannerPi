@@ -195,7 +195,10 @@ class GLGMonitor(ReceivingState):
 	def scrollWin(self):
 		"""Scroll the output window if necessary"""
 		self.__logger.debug("")
-		self.monwin.putline('.', scroll = True)
+		try:
+			self.monwin.putline('\u2026Idle\u2026', scroll = True)
+		except:
+			self.monwin.putline('...Idle...', scroll = False)	# Just in case the '\u2026' is rejected
 
 	def writeWin(self):
 		"""Write the current reception info to the window"""
