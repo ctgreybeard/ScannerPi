@@ -1,26 +1,27 @@
 """The main scanmon code. Evertything begines here."""
 
-import sys
-import time
-import threading
-import argparse
-import io
-import decimal
-import datetime
-import subprocess
-import curses
-import threading
-import queue
 from collections import deque
-import logging
 from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
+
+import argparse
+import curses
+import datetime
+import decimal
+import io
+import logging
+import queue
 import re
+import sqlite3
+import subprocess
+import sys
+import threading
+import time
 
 # Our own definitions
+from .glgmonitor import GLGMonitor
+from .monwin import Monwin
 from .scanner import Scanner
 from .scanner.formatter import Response, ScannerDecodeError
-from .monwin import Monwin
-from .glgmonitor import GLGMonitor
 
 class Scanmon:
 
@@ -39,6 +40,25 @@ class Scanmon:
 	_VOLALIAS = {'norm':'normal', 'vlow':'verylow', 'vvlow': 'veryverylow', 'hi':'high', 'vhigh':'veryhigh', 'vhi':'veryhigh', 'dn':'down'}
 
 
+	@staticmethod
+	def _adapt_bool(value):
+		return(int(bool(value)))
+
+	@staticmethod
+	def _convert_bool(value):
+		return value == b'1'
+
+	@staticmethod
+	def _adapt_decimal(value):
+		return(str(value))
+
+	@staticmethod
+	def _convert_decimal(value):
+		try:
+			return decimal.Decimal(value.decode())
+		except decimal.InvalidOperation:
+			return decimal.Decimal("NaN")
+
 	def __init__(self, args):
 		self.__args = args
 		self.__logger = logging.getLogger()
@@ -54,6 +74,11 @@ class Scanmon:
 		self.autocmd = False
 		if self.__args.debug: self.__logger.setLevel(LDEBUG)
 		else: self.__logger.setLevel(LINFO)
+		# Setup sqlite3 adapters
+		sqlite3.register_adapter(decimal.Decimal, Scanmon._adapt_decimal)
+		sqlite3.register_converter('decimal', Scanmon._convert_decimal)
+		sqlite3.register_adapter(bool, Scanmon._adapt_bool)
+		sqlite3.register_converter('boolean', Scanmon._convert_bool)
 
 	def f_cmdin(self):
 		"""Read input from the window and post to the command queue
@@ -318,7 +343,7 @@ if __name__ == '__main__':
 		required = False,
 		help = "Green" + colorhelp,
 		type = int)
-	parser.add_argument("--database",
+	parser.add_argument("--database", "--db",
 		required = False,
 		default = "scanmon.db",
 		help = "File name for the database",
