@@ -1,5 +1,3 @@
-"""The main scanmon code. Evertything begines here."""
-
 from collections import deque
 from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
 
@@ -24,6 +22,7 @@ from .scanner import Scanner
 from .scanner.formatter import Response, ScannerDecodeError
 
 class Scanmon:
+"""The main scanmon code. Everything begins here."""
 
 # Class constants
     _logformat = "{asctime} {module}.{funcName} -{levelname}- *{threadName}* {message}"

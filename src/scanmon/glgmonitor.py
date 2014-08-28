@@ -1,4 +1,4 @@
-'''GLGMonitor - Processing for GLG monitor'''
+"""GLGMonitor - Processing for GLG monitor"""
 
 from datetime import datetime, timedelta
 
@@ -31,27 +31,29 @@ class Reception:
 
     @property
     def sys_id(self):
-        '''A simple identifier for the System-Group-Channel'''
+        """A simple identifier for the System-Group-Channel"""
         return '-'.join((self.System, self.Group, self.Channel,))
 
     def __eq__(self, other):
+        """Reception equality -- equal if System, Group, Channel, and Startime are equal"""
         if isinstance(other, Reception):
             return self.sys_id == other.sys_id and self.Starttime == other.Starttime
         else:
             raise ValueError
 
-# Class for GLG monitoring
 class GLGMonitor(ReceivingState):
-    """Class to hold monitoring info for GLG monitoring."""
+    """Class to hold monitoring info for GLG monitoring.
 
-    IDLETIME = 15.0     # 15 seconds between transmissions is a new transmission
+    Usually only one instance is necessary. After initialization call process repeatedly to perform the monitoring."""
+
+    IDLETIME = 11.0 # 11 seconds between transmissions is a new transmission
     TAGNONE = -1    # System and Channel tag NONE
     _TIMEFMT = '%H:%M:%S'
-    _EPOCH = 3600 * 24 * 356    # A year of seconds
+    _EPOCH = 3600 * 24 * 356    # A year of seconds (sort of ...)
 
     @property
     def sys_id(self):
-        """Get the unique ID for this System/Group.Channel combination"""
+        """Get the unique ID for this System/Group/Channel combination"""
         if self.isActive:
             return '-'.join((self.systemName, self.groupName, self.channelName))
         else:
@@ -77,6 +79,7 @@ class GLGMonitor(ReceivingState):
         self.reception = None
         self.state = GLGMonitor.IDLE
         self.db = db
+# FIXME: Straighten out db param and args.database processing
         self.IDLETIME = GLGMonitor.IDLETIME
         if args and hasattr(args, 'timeout'):
             self.__logger.info("Timeout override: %s", args.timeout)
@@ -90,12 +93,13 @@ class GLGMonitor(ReceivingState):
             self.__initdb__(':memory:')
 
     def __initdb__(self, database):
+        """Initialize the database for storing Receptions and tracking lastseen."""
         try:
             self.db = database
             self.__logger.info("Using database: %s", self.db)
             self.dbconn = sqlite3.connect(self.db, detect_types = sqlite3.PARSE_DECLTYPES, isolation_level = None)
             self.dbconn.row_factory = sqlite3.Row
-            create = '''CREATE TABLE IF NOT EXISTS "Reception"
+            create = """CREATE TABLE IF NOT EXISTS "Reception"
                 ("Starttime" timestamp,
                  "Duration" integer,
                  "System" text,
@@ -107,21 +111,21 @@ class GLGMonitor(ReceivingState):
                  "Attenuation" boolean,
                  "SystemTag" integer,
                  "ChannelTag" integer,
-                 "P25NAC" text)'''
+                 "P25NAC" text)"""
             self.dbconn.execute(create)
-            self.dbconn.execute('''CREATE TEMPORARY TABLE IF NOT EXISTS LastSeen
+            self.dbconn.execute("""CREATE TEMPORARY TABLE IF NOT EXISTS LastSeen
                 ("System" TEXT,
                  "Group" TEXT,
                  "Channel" TEXT,
-                 "LastTime" timestamp)''')
+                 "LastTime" timestamp)""")
         except:
             self.__logger.exception("Error initializing database")
             raise
         # Build the lastseen table from the database
         try:
-            self.dbconn.execute('''INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
+            self.dbconn.execute("""INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
                 SELECT "System", "Group", "Channel", MAX("Starttime") FROM "Reception"
-                    GROUP BY "System", "Group", "Channel"''')
+                    GROUP BY "System", "Group", "Channel" """)
         except:
             self.__logger.exception("Error populating lastseen table")
             raise
@@ -131,22 +135,27 @@ class GLGMonitor(ReceivingState):
         self.__logger.debug("new Reception-%s", self.sys_id)
         self.state = GLGMonitor.RECEIVING
         self.reception = Reception(glgresp)
-        curs = self.dbconn.execute('''SELECT "LastTime" FROM "LastSeen"
-            WHERE "System" == :System AND "Group" == :Group AND "Channel" == :Channel''', self.reception.__dict__)
+        curs = self.dbconn.execute("""SELECT "LastTime" FROM "LastSeen"
+            WHERE "System" == :System AND "Group" == :Group AND "Channel" == :Channel""", self.reception.__dict__)
         row = curs.fetchone()
         if row:
             self.reception.lastseen = row['LastTime']
-            dbupdate = '''UPDATE LastSeen SET LastTime = :Starttime
-                WHERE "System" = :System AND "Group" = :Group AND "Channel" = :Channel'''
+            dbupdate = """UPDATE LastSeen SET LastTime = :Starttime
+                WHERE "System" = :System AND "Group" = :Group AND "Channel" = :Channel"""
         else:
             self.reception.lastseen = None
-            dbupdate = '''INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
-                VALUES (:System, :Group, :Channel, :Starttime)'''
+            dbupdate = """INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
+                VALUES (:System, :Group, :Channel, :Starttime)"""
         self.dbconn.execute(dbupdate, self.reception.__dict__)
         self.writeWin()
 
     def accumulateTime(self):
-        """Accumulate time in the current reception, set state"""
+        """Accumulate time in the current reception, set state.
+
+        Time acculumates while the response is Active. During the timeout period time is not
+        accumulated unless the same system becomes active; at that time the elapsed idle time is included in the
+        reception. If the system times out or another system comes active during the timeout period then the idle
+        time is not accumulated."""
         samesystem = self.sys_id == self.reception.sys_id
         self.__logger.debug("system: %s, samesystem: %s, isActive: %s", self.sys_id, samesystem, self.isActive)
 
@@ -171,11 +180,11 @@ class GLGMonitor(ReceivingState):
 
         if self.reception:
             try:
-                dbwrite = '''INSERT INTO "Reception"
+                dbwrite = """INSERT INTO "Reception"
                     ("Starttime", "Duration", "System", "Group", "Channel", "Frequency_TGID", "CTCSS_DCS",
                      "Modulation", "Attenuation", "SystemTag", "ChannelTag", "P25NAC") VALUES
                     (:Starttime, :Duration, :System, :Group, :Channel, :Frequency_TGID, :CTCSS_DCS,
-                     :Modulation, :Attenuation, :SystemTag, :ChannelTag, :P25NAC)'''
+                     :Modulation, :Attenuation, :SystemTag, :ChannelTag, :P25NAC)"""
                 self.dbconn.execute(dbwrite, self.reception.__dict__)
             except:
                 self.__logger.exception("Error writing Reception to database")
@@ -193,7 +202,7 @@ class GLGMonitor(ReceivingState):
             self.state = GLGMonitor.IDLE
 
     def scrollWin(self):
-        """Scroll the output window if necessary"""
+        """Scroll the output window."""
         self.__logger.debug("")
         try:
             self.monwin.putline('\u2026Idle\u2026', scroll = True)
@@ -218,7 +227,7 @@ class GLGMonitor(ReceivingState):
             else:
                 lastseen = '*Forever'
             self.reception.infocache = \
-                "{time:s}: Sys={sys:.<16s}|Grp={grp:.<16s}|Chan={chn:.<16s}|Freq={frq:#9.4f}|C/D={ctc:>3s} last={last:>8s}".\
+                "{time:s}: Sys={sys:.<16s}|Grp={grp:.<16s}|Chan={chn:.<16s}|Freq={frq:#9.4f}|C/D={ctc:>3s} last={last:>8s}". \
                     format(time=self.reception.Starttime.strftime(GLGMonitor._TIMEFMT),
                         sys=self.reception.System,
                         grp=self.reception.Group,
@@ -232,6 +241,7 @@ class GLGMonitor(ReceivingState):
             scroll = False)
 
     def parseResponse(self, glgresp):
+        """Accept a scanner.formatter.Response object, decode it, set GLGMonitor values."""
         assert isinstance(glgresp, Response)
         assert glgresp.CMD == 'GLG'
         self.receiveTime = glgresp.TIME
@@ -255,7 +265,9 @@ class GLGMonitor(ReceivingState):
         self.mute = glgresp.MUT == '1'
 
     def process(self, glgresp):
-        """Process a GLG response"""
+        """Process a GLG response
+
+        This is the main reoutine. It should be called repeatedly with a Scanner Response object."""
         self.__logger.debug("processing: %s, state: %s", glgresp, self.state)
         self.glgresp = glgresp
         self.parseResponse(self.glgresp)
