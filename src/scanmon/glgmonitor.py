@@ -2,11 +2,14 @@
 '''
 
 from datetime import datetime, timedelta
+
 import decimal
 import logging
-from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
-from .scanner.formatter import Response
+import sqlite3
+
+# Import our private modules
 from .receivingstate import ReceivingState
+from .scanner.formatter import Response
 
 class Reception:
 	"""Holds information related to a single reception"""
@@ -67,7 +70,6 @@ class GLGMonitor(ReceivingState):
 # Set up logging
 		self.__logger = logging.getLogger().getChild(__name__)
 		self.__logger.info(__class__.__name__+': Initializing')
-		self.lastseen = {}
 		self.lastid = ''
 		self.lastactive = 1.0
 		self.squelch = False
@@ -82,17 +84,65 @@ class GLGMonitor(ReceivingState):
 				self.IDLETIME = float(args.timeout)
 			except:
 				self.__logger.error("Invalid timeout argument: %s", args.timeout)
+		if args and hasattr(args, 'database') and len(args.database) > 3:
+			self.__initdb__(args.database)
+		else:
+			self.__initdb__(':memory:')
+
+	def __initdb__(self, database):
+		try:
+			self.db = database
+			self.__logger.info("Using database: %s", self.db)
+			self.dbconn = sqlite3.connect(self.db, detect_types = sqlite3.PARSE_DECLTYPES, isolation_level = None)
+			self.dbconn.row_factory = sqlite3.Row
+			create = '''CREATE TABLE IF NOT EXISTS "Reception"
+				("Starttime" timestamp,
+				 "Duration" integer,
+				 "System" text,
+				 "Group" text,
+				 "Channel" text,
+				 "Frequency_TGID" text,
+				 "CTCSS_DCS" integer,
+				 "Modulation" text,
+				 "Attenuation" boolean,
+				 "SystemTag" integer,
+				 "ChannelTag" integer,
+				 "P25NAC" text)'''
+			self.dbconn.execute(create)
+			self.dbconn.execute('''CREATE TEMPORARY TABLE IF NOT EXISTS LastSeen
+				("System" TEXT,
+				 "Group" TEXT,
+				 "Channel" TEXT,
+				 "LastTime" timestamp)''')
+		except:
+			self.__logger.exception("Error initializing database")
+			raise
+		# Build the lastseen table from the database
+		try:
+			self.dbconn.execute('''INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
+				SELECT "System", "Group", "Channel", MAX("Starttime") FROM "Reception"
+					GROUP BY "System", "Group", "Channel"''')
+		except:
+			self.__logger.exception("Error populating lastseen table")
+			raise
 
 	def createReception(self, glgresp):
 		"""Create a Reception instance"""
 		self.__logger.debug("new Reception-%s", self.sys_id)
 		self.state = GLGMonitor.RECEIVING
 		self.reception = Reception(glgresp)
-		if self.reception.sys_id in self.lastseen:
-			self.reception.lastseen = self.lastseen[self.reception.sys_id]
+		curs = self.dbconn.execute('''SELECT "LastTime" FROM "LastSeen"
+			WHERE "System" == :System AND "Group" == :Group AND "Channel" == :Channel''', self.reception.__dict__)
+		row = curs.fetchone()
+		if row:
+			self.reception.lastseen = row['LastTime']
+			dbupdate = '''UPDATE LastSeen SET LastTime = :Starttime
+				WHERE "System" = :System AND "Group" = :Group AND "Channel" = :Channel'''
 		else:
 			self.reception.lastseen = None
-		self.lastseen[self.reception.sys_id] = self.reception.Starttime
+			dbupdate = '''INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
+				VALUES (:System, :Group, :Channel, :Starttime)'''
+		self.dbconn.execute(dbupdate, self.reception.__dict__)
 		self.writeWin()
 
 	def accumulateTime(self):
@@ -118,7 +168,23 @@ class GLGMonitor(ReceivingState):
 	def writeDatabase(self):
 		"""Write database record, set state"""
 		self.__logger.debug("system: %s", self.reception.sys_id)
+
+		if self.reception:
+			try:
+				dbwrite = '''INSERT INTO "Reception"
+					("Starttime", "Duration", "System", "Group", "Channel", "Frequency_TGID", "CTCSS_DCS",
+					 "Modulation", "Attenuation", "SystemTag", "ChannelTag", "P25NAC") VALUES
+					(:Starttime, :Duration, :System, :Group, :Channel, :Frequency_TGID, :CTCSS_DCS,
+					 :Modulation, :Attenuation, :SystemTag, :ChannelTag, :P25NAC)'''
+				self.dbconn.execute(dbwrite, self.reception.__dict__)
+			except:
+				self.__logger.exception("Error writing Reception to database")
+				raise
+		else:
+			self.__logger.error("Cannot write database if no Reception exists!")
+
 		self.scrollWin()
+
 		if self.isActive:
 			self.createReception(self.glgresp)
 			self.state = GLGMonitor.RECEIVING
@@ -142,7 +208,7 @@ class GLGMonitor(ReceivingState):
 				lctx.traps[decimal.InvalidOperation] = False
 				frq = decimal.Decimal(self.reception.Frequency_TGID)
 
-# Compute the 'lastseen' value (HH:MM:SS)
+# Compute the 'lastseen' display value (HH:MM:SS)
 			if self.reception.lastseen:
 				d = self.reception.Starttime - self.reception.lastseen
 				lastseen = str(timedelta(d.days, d.seconds, 0))
