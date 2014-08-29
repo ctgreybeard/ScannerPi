@@ -24,13 +24,13 @@ print("GLG:", s.command("GLG"))
 print("Looping for 5 receptions. Use ^C if it's taking too long.")
 t = 0
 try:
-	while t < 5:
-		r = s.command("GLG")
-		if r.NAME1:
-			print("Sys={NAME1}, Group={NAME2}, Chan={NAME3}, Sql={SQL}, Mute={MUT}, Time={TIME}".format_map(r))
-			t += 1
-		sleep(1)
+    while t < 5:
+        r = s.command("GLG")
+        if r.NAME1:
+            print("Sys={NAME1}, Group={NAME2}, Chan={NAME3}, Sql={SQL}, Mute={MUT}, Time={TIME}".format_map(r))
+            t += 1
+        sleep(1)
 except KeyboardInterrupt:
-	print("\nOK, quitting the loop")
+    print("\nOK, quitting the loop")
 finally:
-	print("Loop done...")
+    print("Loop done...")

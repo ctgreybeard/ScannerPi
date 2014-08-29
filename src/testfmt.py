@@ -9,13 +9,13 @@ TST = 'TST,ONE,TWO,THREE,FOUR,FIVE'
 UNK = 'UNK,Some ,,,Unknown,   Response, that,we,can,handle,,OK?,,'
 
 for t in (GLG, GLG2, STS, TST, UNK):
-	v = Response(t)
-	cmd = v.CMD
-	print("{} dict: {}".format(cmd, v.__dict__))
-	print('{} str={}'.format(cmd, v.__str__()))
-	print('{} NONEXIST={}'.format(cmd, v.NONEXIST))
-	try:
-		print('{} nonexist={}'.format(cmd, v.nonexist))
-	except AttributeError:
-		print("{} nonexist doesn't exist (as it should be)".format(cmd))
-	print("---")
+    v = Response(t)
+    cmd = v.CMD
+    print("{} dict: {}".format(cmd, v.__dict__))
+    print('{} str={}'.format(cmd, v.__str__()))
+    print('{} NONEXIST={}'.format(cmd, v.NONEXIST))
+    try:
+        print('{} nonexist={}'.format(cmd, v.nonexist))
+    except AttributeError:
+        print("{} nonexist doesn't exist (as it should be)".format(cmd))
+    print("---")
