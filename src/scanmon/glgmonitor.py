@@ -81,13 +81,13 @@ class GLGMonitor(ReceivingState):
         self.db = db
 # FIXME: Straighten out db param and args.database processing
         self.IDLETIME = GLGMonitor.IDLETIME
-        if args and hasattr(args, 'timeout'):
+        if args and hasattr(args, 'timeout') and args.timeout is not None:
             self.__logger.info("Timeout override: %s", args.timeout)
             try:
                 self.IDLETIME = float(args.timeout)
             except:
                 self.__logger.error("Invalid timeout argument: %s", args.timeout)
-        if args and hasattr(args, 'database') and len(args.database) > 3:
+        if args and hasattr(args, 'database') and args.database is not None and len(args.database) > 3:
             self.__initdb__(args.database)
         else:
             self.__initdb__(':memory:')
@@ -113,19 +113,17 @@ class GLGMonitor(ReceivingState):
                  "ChannelTag" integer,
                  "P25NAC" text)"""
             self.dbconn.execute(create)
-            self.dbconn.execute("""CREATE TEMPORARY TABLE IF NOT EXISTS LastSeen
-                ("System" TEXT,
-                 "Group" TEXT,
-                 "Channel" TEXT,
-                 "LastTime" timestamp)""")
         except:
             self.__logger.exception("Error initializing database")
             raise
         # Build the lastseen table from the database
         try:
-            self.dbconn.execute("""INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
-                SELECT "System", "Group", "Channel", MAX("Starttime") FROM "Reception"
+            self.dbconn.execute("""CREATE TEMPORARY TABLE LastSeen
+                AS SELECT "System", "Group", "Channel", MAX("Starttime") AS 'LastTime timestamp' FROM "Reception"
                     GROUP BY "System", "Group", "Channel" """)
+            r = self.dbconn.execute("""pragma tableinfo(temp.LastSeen)""")
+            for row in r:
+                self.__logger.info
         except:
             self.__logger.exception("Error populating lastseen table")
             raise
@@ -139,6 +137,7 @@ class GLGMonitor(ReceivingState):
             WHERE "System" == :System AND "Group" == :Group AND "Channel" == :Channel""", self.reception.__dict__)
         row = curs.fetchone()
         if row:
+            assert isinstance(row['LastTime'], datetime), "LastSeen.LastTime is not a datetime"
             self.reception.lastseen = row['LastTime']
             dbupdate = """UPDATE LastSeen SET LastTime = :Starttime
                 WHERE "System" = :System AND "Group" = :Group AND "Channel" = :Channel"""
