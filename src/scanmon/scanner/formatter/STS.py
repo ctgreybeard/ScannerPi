@@ -1,7 +1,6 @@
 """Handle the STS response"""
 
-# Import our parent
-from . import ScannerDecodeError, Response
+from scanmon.scanner.formatter import ScannerDecodeError, Response
 
 _varlist = list(('CMD',
     'DSP_FORM',

@@ -16,13 +16,13 @@ import threading
 import time
 
 # Our own definitions
-from .glgmonitor import GLGMonitor
-from .monwin import Monwin
-from .scanner import Scanner
-from .scanner.formatter import Response, ScannerDecodeError
+from scanmon.glgmonitor import GLGMonitor
+from scanmon.monwin import Monwin
+from scanmon.scanner import Scanner
+from scanmon.scanner.formatter import Response, ScannerDecodeError
 
 class Scanmon:
-"""The main scanmon code. Everything begins here."""
+    """The main scanmon code. Everything begins here."""
 
 # Class constants
     _logformat = "{asctime} {module}.{funcName} -{levelname}- *{threadName}* {message}"

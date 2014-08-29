@@ -20,55 +20,54 @@ GREEN = 3
 COLORS = {"NORM":NORM, "ALERT":ALERT, "WARN":WARN, "GREEN":GREEN}
 
 class Monwin:
-
     """Build and control the curses screen for Scanmon.
 
     Internal classes:
     Subwin -- The individual sub-windows (msg, glg, resp, cmd, and alert)
 
-    Functions:
+    Methods:
     __init__ -- The usual.
     putline -- Scroll the sub-window and write a new line at the bottom.
     getline -- Read input from the command window.
     alert -- Display a message in the message window. Wait for acknowledgement.
-    message -- Display a message in the message window.
-    """
-    class Subwin:
+    message -- Display a message in the message window."""
 
+    class Subwin:
         """Build a subwindow or overlay window.
 
-        Functions:
+        Methods:
         __init__ -- Initialization
         putline -- Scroll the sub-window and write a new line at the bottom
         getline -- Read input from the command window
-        hint -- Write text as a hint line within the top border allowance
-        """
+        hint -- Write text as a hint line within the top border allowance"""
 
-        def __init__(self, master, name,
-            height, width,
-            origin_y, origin_x,
-            colors,
-            overlay = False,
-            textinput = False,
-            borderleft = 1, borderright = 1, bordertop = 1, borderbottom = 1,
-            border = False,
-            hlinetop = False, hlinebottom = False):
-
-            """Initialize the class.
+        def __init__(
+                self,
+                master,
+                name,
+                height, width,
+                origin_y, origin_x,
+                colors,
+                overlay = False,
+                textinput = False,
+                borderleft = 1, borderright = 1, bordertop = 1, borderbottom = 1,
+                border = False,
+                hlinetop = False, hlinebottom = False):
+            """Initialize the Subwin class.
 
             Positional arguments:
             master -- The master window (usually stdscr)
             name -- The name of the subwindow
             origin_y, origin_x -- relative position within the master window
             height, width -- height and width including border allowance
+            colors -- Dict of selected colors
 
             Keyword arguments:
             overlay -- Define subwindow as an overlay rather than subwindow (False)
             textinput -- This is a text input window (False)
             border{left,right,top,bottom} -- Setback allowance for borders (1)
             border -- Draw a standard border within the allowance (False)
-            hline{top,bottom} -- Draw a horizontal line top or bottom with this character (False)
-            """
+            hline{top,bottom} -- Draw a horizontal line top or bottom with this character (False)"""
 
 # Set up logging
             self.__logger = logging.getLogger().getChild(__name__)
@@ -90,11 +89,14 @@ class Monwin:
             self.hlinetop = hlinetop
             self.hlinebottom = hlinebottom
             self.colors = colors
-            self.__logger.info(', '.join(("subwin %s: Initialized master=%s",
-                "height=%s", "width=%s", "origin_y=%s", "origin_x=%s",
-                "overlay=%s", "textinput=%s",
-                "borders=(%s,%s,%s,%s)", "border=%s",
-                "hlinetop=0x%x", "hlinebottom=0x%x")),
+            self.__logger.info(
+                "subwin %s: Initialized master=%s, " + \
+                "height=%s, width=%s, " + \
+                "origin_y=%s, origin_x=%s, " + \
+                "overlay=%s, " + \
+                "textinput=%s, " + \
+                "borders=(%s,%s,%s,%s), border=%s, " + \
+                "hlinetop=0x%x, hlinebottom=0x%x",
                 name, (master.getbegyx(), master.getmaxyx()),
                 height, width, origin_y, origin_x,
                 overlay, textinput,
@@ -106,7 +108,10 @@ class Monwin:
 # Create a dummy "master" window to hold the border
                     master = self.master.subwin(height, width, origin_y, origin_x)
                     master.border()
-                    self.__logger.info("subwin %s: non-overlay+border master at %s", self.name, (height, width, origin_y, origin_x))
+                    self.__logger.info(
+                        "subwin %s: non-overlay+border master at %s",
+                        self.name,
+                        (height, width, origin_y, origin_x))
                     origin_x = 0
                     origin_y = 0
                     borderleft = 1
@@ -120,11 +125,17 @@ class Monwin:
                 self.winwidth = width - borderleft - borderright
                 self.winorigin_y = origin_y + bordertop
                 self.winorigin_x = origin_x + borderleft
-                self.window = master.subwin(height - bordertop - borderbottom,
+                self.window = master.subwin(
+                    height - bordertop - borderbottom,
                     width - borderleft - borderright,
                     origin_y + bordertop,
                     origin_x + borderleft)
-                self.__logger.info("subwin %s: subwindow at %s", self.name, (height - bordertop - borderbottom, width - borderleft - borderright, origin_y + bordertop, origin_x + borderleft))
+                self.__logger.info(
+                    "subwin %s: subwindow at %s",
+                    self.name,
+                    (height - bordertop - borderbottom,
+                     width - borderleft - borderright,
+                     origin_y + bordertop, origin_x + borderleft))
 
                 self.window.leaveok(0)
                 self.bottomline = height - bordertop - borderbottom - 1
@@ -170,13 +181,15 @@ class Monwin:
             if scroll:
                 target.scroll()
             try:
-                target.addnstr(self.bottomline,
+                target.addnstr(
+                    self.bottomline,
                     self.firstcol,
                     message,
                     self.winwidth,
                     curses.color_pair(self.colors[color]))
             except:
-                self.__logger.error("subwin %s: addnstr(%s, %s, %s, %s, %s) failed",
+                self.__logger.error(
+                    "subwin %s: addnstr(%s, %s, %s, %s, %s) failed",
                     self.name,
                     self.bottomline,
                     self.firstcol,
@@ -189,7 +202,6 @@ class Monwin:
             curses.doupdate()
 
     def __init__(self, stdscr, args):
-
         """Initialize the master screen (stdscr)
 
         Positional parameters:
@@ -234,13 +246,44 @@ class Monwin:
         stdscr.attrset(curses.color_pair(self.colors["NORM"]))
         stdscr.border()
 
-        self.msgwin = Monwin.Subwin(stdscr, "msg", MSGLINES, WINCOLS, 0, 0, self.colors, hlinebottom = curses.ACS_HLINE)
-        self.glgwin = Monwin.Subwin(stdscr, "glg",
-            GLGLINES, WINCOLS, MSGLINES, 0, self.colors, hlinebottom = curses.ACS_HLINE, bordertop = 0)
-        self.respwin = Monwin.Subwin(stdscr, "resp",
-            RESPLINES, WINCOLS, MSGLINES + GLGLINES, 0, self.colors, hlinebottom = curses.ACS_HLINE, bordertop = 0)
-        self.cmdwin = Monwin.Subwin(stdscr, "cmd",
-            CMDLINES, WINCOLS, MSGLINES + GLGLINES + RESPLINES, 0, self.colors, textinput = True, bordertop = 0)
+        self.msgwin = Monwin.Subwin(
+            stdscr,
+            "msg",
+            MSGLINES,
+            WINCOLS,
+            0,
+            0,
+            self.colors,
+            hlinebottom = curses.ACS_HLINE)
+        self.glgwin = Monwin.Subwin(
+            stdscr, "glg",
+            GLGLINES,
+            WINCOLS,
+            MSGLINES,
+            0,
+            self.colors,
+            hlinebottom = curses.ACS_HLINE,
+            bordertop = 0)
+        self.respwin = Monwin.Subwin(
+            stdscr,
+            "resp",
+            RESPLINES,
+            WINCOLS,
+            MSGLINES + GLGLINES,
+            0,
+            self.colors,
+            hlinebottom = curses.ACS_HLINE,
+            bordertop = 0)
+        self.cmdwin = Monwin.Subwin(
+            stdscr,
+            "cmd",
+            CMDLINES,
+            WINCOLS,
+            MSGLINES + GLGLINES + RESPLINES,
+            0,
+            self.colors,
+            textinput = True,
+            bordertop = 0)
         self.homepos = (self._mainlines - 2, 1)
         stdscr.move(*self.homepos)
 
@@ -260,14 +303,14 @@ class Monwin:
         target = self.windows[window].putline(message, color)
 
     def getline(self):
-        """Get a line from the command window
-        """
+        """Get a line from the command window."""
         self.windows["cmd"].window.erase()
         self.windows["cmd"].window.move(0, 0)
         target = self.windows["cmd"].textbox
         return target.edit().strip()
 
     def alert(self):
+        """NOTE: TBD"""
         raise NotImplementedError("We cannot alert just yet")
 
     def message(self, message, color = "WARN"):

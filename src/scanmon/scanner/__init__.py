@@ -27,15 +27,13 @@ _BAUDRATE = 115200
 _DEVS = ("/dev/ttyUSB0", "/dev/ttyUSB1")
 
 def _decodeerror(decodeerror):
-    """Simple static decoder error routine to simply replace errors with a '?'
-    """
+    """Simple static decoder error routine to simply replace errors with a '?'."""
     return ('?' * (decodeerror.end - decodeerror.start), decodeerror.end, )
 
 codecs.register_error(_ENCERRORS, _decodeerror)
 
 def _setio(ttyio):
-    """Use termios to set the tty attributes the way we like. Only make changes if necessary.
-    """
+    """Use termios to set the tty attributes the way we like. Only make changes if necessary."""
     attrs = termios.tcgetattr(ttyio)
     nattrs = copy.deepcopy(attrs)
     iflag, oflag, cflag, lflag, ispeed, ospeed, cc = list(range(7))
@@ -155,15 +153,14 @@ class Scanner:
                 raise IOError("Scanner did not properly respond to {} command, status={}".format(c, r.status))
 
     def close(self):
-        """Close the streams from and to the scanner.
-        """
+        """Close the streams from and to the scanner."""
         if self._serscanner:
             self._serscanner.close()
 
     def readline(self):
         """Read an input line from the scanner.
-        Note that this is a non-blocking read, it will timeout in _TIMEOUT seconds.
-        """
+
+        Note that this is a non-blocking read, it will timeout in _TIMEOUT seconds."""
         with self.iolock:
             response = self._scanio.readline()
 
@@ -174,8 +171,8 @@ class Scanner:
 
     def writeline(self, line):
         """Write a line to the scanner.
-        Note that this is a blocking write but there should be no reason for it to block.
-        """
+
+        Note that this is a blocking write but there should be no reason for it to block."""
         with self.iolock:
             written = self._scanio.write(line)
             # Send the '\r' newline

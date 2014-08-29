@@ -7,8 +7,8 @@ import logging
 import sqlite3
 
 # Import our private modules
-from .receivingstate import ReceivingState
-from .scanner.formatter import Response
+from scanmon.receivingstate import ReceivingState
+from scanmon.scanner.formatter import Response
 
 class Reception:
     """Holds information related to a single reception"""

@@ -1,13 +1,10 @@
-'''State -- State control
-'''
-
-"""State constants"""
-
-(_idle, _receiving, _timeout) = ('IDLE', 'RECEIVING', 'TIMEOUT')
-
 import logging
 
+"""State constants"""
+(_idle, _receiving, _timeout) = ('IDLE', 'RECEIVING', 'TIMEOUT')
+
 class ReceivingState:
+    """Holds the state of the receiving stream."""
 
     (IDLE,  RECEIVING,  TIMEOUT) = (_idle , _receiving , _timeout)
 
@@ -25,7 +22,7 @@ class ReceivingState:
 
     @property
     def state(self):
-        '''Reception state'''
+        """Reception state"""
         return self.__state
 
     __states = frozenset((IDLE, RECEIVING, TIMEOUT,))
@@ -51,7 +48,7 @@ class ReceivingState:
         return "{0}({0}.{1})".format(self.__class__.__name__, self.__state)
 
 def _runTests():
-    '''Testing code'''
+    """Testing code"""
 
     print("--State initialization and setting")
     mystate = ReceivingState()
@@ -94,9 +91,9 @@ def _runTests():
         print('  ValueError test 2 complete.')
 
     print("--State checking pseudo attributes, initialization")
-    testers = ((ReceivingState.IDLE, (True, False, False), 'Idle'), 
-        (ReceivingState.RECEIVING, (False, True, False), 'Receiving'), 
-        (ReceivingState.TIMEOUT, (False, False, True), 'Timeout')) 
+    testers = ((ReceivingState.IDLE, (True, False, False), 'Idle'),
+        (ReceivingState.RECEIVING, (False, True, False), 'Receiving'),
+        (ReceivingState.TIMEOUT, (False, False, True), 'Timeout'))
 
     for test in testers:
         mystate = ReceivingState(test[0])

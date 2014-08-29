@@ -10,8 +10,7 @@ be used to decode the response. For most scanner responses a customized decode i
 
 A display is usually provided here which will format the response display into something more readable."""
 
-# Import our parent
-from . import ScannerDecodeError, Response
+from scanmon.scanner.formatter import ScannerDecodeError, Response
 
 # This list is the names of the response values. Usually taken from the Complete Reference manual
 
