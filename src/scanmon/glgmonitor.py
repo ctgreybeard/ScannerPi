@@ -78,16 +78,14 @@ class GLGMonitor(ReceivingState):
         self.monwin = monwin
         self.reception = None
         self.state = GLGMonitor.IDLE
-        self.db = db
-# FIXME: Straighten out db param and args.database processing
         self.IDLETIME = GLGMonitor.IDLETIME
-        if args and hasattr(args, 'timeout'):
+        if args and hasattr(args, 'timeout') and args.timeout is not None:
             self.__logger.info("Timeout override: %s", args.timeout)
             try:
                 self.IDLETIME = float(args.timeout)
             except:
                 self.__logger.error("Invalid timeout argument: %s", args.timeout)
-        if args and hasattr(args, 'database') and len(args.database) > 3:
+        if args and hasattr(args, 'database') and args.database is not None and len(args.database) > 0:
             self.__initdb__(args.database)
         else:
             self.__initdb__(':memory:')
