@@ -57,4 +57,4 @@ docs/_build/
 Session*.vim
 
 # Project working files we don't need to track
-scanmon.db
+scanmon*.db
