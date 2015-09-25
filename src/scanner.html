@@ -1,0 +1,97 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: package scanner</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong>scanner</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:/home/pi/Projects/ScannerPi/src/scanner/__init__.py">/home/pi/Projects/ScannerPi/src/scanner/__init__.py</a></font></td></tr></table>
+    <p><tt>A&nbsp;class&nbsp;and&nbsp;methods&nbsp;to&nbsp;control&nbsp;the&nbsp;Uniden&nbsp;BCD996XT&nbsp;scanner.<br>
+&nbsp;<br>
+Classes:&nbsp;<br>
+<a href="#Scanner">Scanner</a>&nbsp;--&nbsp;Defines&nbsp;data&nbsp;and&nbsp;control&nbsp;structures&nbsp;to&nbsp;control</tt></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#aa55cc">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Package Contents</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#aa55cc"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><table width="100%" summary="list"><tr><td width="25%" valign=top><a href="scanner.formatter.html"><strong>formatter</strong>&nbsp;(package)</a><br>
+</td><td width="25%" valign=top></td><td width="25%" valign=top></td><td width="25%" valign=top></td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ee77aa">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Classes</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#ee77aa"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl>
+<dt><font face="helvetica, arial"><a href="builtins.html#object">builtins.object</a>
+</font></dt><dd>
+<dl>
+<dt><font face="helvetica, arial"><a href="scanner.html#Scanner">Scanner</a>
+</font></dt></dl>
+</dd>
+</dl>
+ <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="Scanner">class <strong>Scanner</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#Scanner">Scanner</a>&nbsp;--&nbsp;Defines&nbsp;data&nbsp;and&nbsp;control&nbsp;structures&nbsp;to&nbsp;control.<br>
+&nbsp;<br>
+Arguments:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;device&nbsp;--&nbsp;Optional.&nbsp;The&nbsp;name&nbsp;of&nbsp;the&nbsp;USB&nbsp;Serial&nbsp;connection.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This&nbsp;is&nbsp;usually&nbsp;"/dev/ttyUSB0"&nbsp;or&nbsp;"/dev/ttyUSB1".&nbsp;The&nbsp;class&nbsp;will&nbsp;attempt&nbsp;to&nbsp;use&nbsp;one&nbsp;or&nbsp;the&nbsp;other<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if&nbsp;the&nbsp;device&nbsp;is&nbsp;not&nbsp;indicated.<br>
+&nbsp;<br>
+Methods:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;readline&nbsp;--&nbsp;Read&nbsp;one&nbsp;line&nbsp;of&nbsp;response&nbsp;from&nbsp;the&nbsp;scanner.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;writeline&nbsp;--&nbsp;Write&nbsp;one&nbsp;line&nbsp;of&nbsp;text&nbsp;to&nbsp;the&nbsp;scanner<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;close&nbsp;&nbsp;&nbsp;&nbsp;--&nbsp;Cease&nbsp;operations&nbsp;on&nbsp;the&nbsp;scanner.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;reopen&nbsp;&nbsp;&nbsp;--&nbsp;Reopen&nbsp;a&nbsp;closed&nbsp;connection&nbsp;to&nbsp;the&nbsp;scanner<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="Scanner-__init__"><strong>__init__</strong></a>(self, device<font color="#909090">=None</font>)</dt><dd><tt>Initialize&nbsp;the&nbsp;class&nbsp;instance.<br>
+&nbsp;<br>
+Arguments:<br>
+device&nbsp;--&nbsp;The&nbsp;name&nbsp;of&nbsp;the&nbsp;scanner&nbsp;device.&nbsp;Usually&nbsp;"/dev/ttyUSB0"&nbsp;or&nbsp;"/dev/ttyUSB1"<br>
+&nbsp;<br>
+Initialization&nbsp;will&nbsp;try&nbsp;to&nbsp;figure&nbsp;out&nbsp;what&nbsp;to&nbsp;use&nbsp;if&nbsp;the&nbsp;argumant&nbsp;is&nbsp;omitted.</tt></dd></dl>
+
+<dl><dt><a name="Scanner-close"><strong>close</strong></a>(self)</dt><dd><tt>Close&nbsp;the&nbsp;streams&nbsp;from&nbsp;and&nbsp;to&nbsp;the&nbsp;scanner.</tt></dd></dl>
+
+<dl><dt><a name="Scanner-command"><strong>command</strong></a>(self, cmdline)</dt><dd><tt>Send&nbsp;one&nbsp;command,&nbsp;read&nbsp;the&nbsp;response,&nbsp;apply&nbsp;formatting&nbsp;and&nbsp;return&nbsp;the&nbsp;result.</tt></dd></dl>
+
+<dl><dt><a name="Scanner-readline"><strong>readline</strong></a>(self)</dt><dd><tt>Read&nbsp;an&nbsp;input&nbsp;line&nbsp;from&nbsp;the&nbsp;scanner.<br>
+Note&nbsp;that&nbsp;this&nbsp;is&nbsp;a&nbsp;non-blocking&nbsp;read,&nbsp;it&nbsp;will&nbsp;timeout&nbsp;in&nbsp;_TIMEOUT&nbsp;seconds.</tt></dd></dl>
+
+<dl><dt><a name="Scanner-writeline"><strong>writeline</strong></a>(self, line)</dt><dd><tt>Write&nbsp;a&nbsp;line&nbsp;to&nbsp;the&nbsp;scanner.<br>
+Note&nbsp;that&nbsp;this&nbsp;is&nbsp;a&nbsp;blocking&nbsp;write&nbsp;but&nbsp;there&nbsp;should&nbsp;be&nbsp;no&nbsp;reason&nbsp;for&nbsp;it&nbsp;to&nbsp;block.</tt></dd></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#55aa55">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Data</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#55aa55"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><strong>LCRITICAL</strong> = 50<br>
+<strong>LDEBUG</strong> = 10<br>
+<strong>LERROR</strong> = 40<br>
+<strong>LINFO</strong> = 20<br>
+<strong>LWARNING</strong> = 30</td></tr></table>
+</body></html>

@@ -1,0 +1,10 @@
+#!/usr/local/bin/zsh -f
+
+curl --url 'http://admin:carroll@127.0.0.1:8000/admin/metadata.xsl' \
+	--get \
+	--output metarequest.out \
+	--write-out 'URL=%{url_effective},code=%{http_code}\n' \
+	--data-urlencode "song=$*" \
+	--data-urlencode 'mount=/stream' \
+	--data-urlencode 'mode=updinfo' \
+	--data-urlencode 'charset=UTF-8'
