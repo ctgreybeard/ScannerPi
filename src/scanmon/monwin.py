@@ -175,7 +175,7 @@ class Monwin:
             color   -- The color of the message("NORM", "ALERT", "WARN", "GREEN")
             scroll  -- Scroll window before writing
             """
-            self.__logger.info("subwin %s: writing \"%s\"", self.name, message)
+            self.__logger.debug("subwin %s: writing \"%s\"", self.name, message)
             cy, cx = curses.getsyx()
             target = self.window
             if scroll:

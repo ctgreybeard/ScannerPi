@@ -60,7 +60,7 @@ class Titler(threading.Thread):
     --write-out %{url_effective}-(%{http_code})\\n \
     --output updatetitle.out \
     --dump-header updatetitle.hdrs \
-    --data-urlencode""".split()     # "song=newtitle" is appending before execution
+    --data-urlencode X""".split()     # "song=newtitle" replaces X before execution
 
     def __init__(self):
         super().__init__()
@@ -69,8 +69,7 @@ class Titler(threading.Thread):
 
     def run(self):
 # Set up logging
-        self.__logger = logging.getLogger().getChild(__name__)
-        self.__logger.info(__class__.__name__+': Initializing')
+        self.__logger = logging.getLogger().getChild(__name__+"."+__class__.__name__)
         self.titleQueue = queue.Queue()
         self.running = True
         self.__logger.setLevel(logging.INFO)    # Keep the info logging until we get started
@@ -104,14 +103,13 @@ class Titler(threading.Thread):
             os.waitpid(updpid, 0)
         elif updpid == 0:
             try:
-                newtitle = self._TITLECMD[:]     # Make a copy
-                newtitle.append("song=" + title)
+                self._TITLECMD[-1] = "song=" + title
 
                 sys.stdout = open("updatetitle.stdout", "w")
                 os.dup2(sys.stdout.fileno(), 1)
                 sys.stderr = open("updatetitle.stderr", "w")
                 os.dup2(sys.stderr.fileno(), 2)
-                os.execvp(newtitle[0], newtitle)
+                os.execvp(self._TITLECMD[0], self._TITLECMD)
                 # WILL NOT RETURN
             except:
                 self.__logger.exception("Error during update")
@@ -149,7 +147,7 @@ class GLGMonitor(ReceivingState):
         """Initialize the instance"""
         super().__init__()
 # Set up logging
-        self.__logger = logging.getLogger().getChild(__name__)
+        self.__logger = logging.getLogger().getChild(__name__+"."+__class__.__name__)
         self.__logger.info(__class__.__name__+': Initializing')
         self.lastid = ''
         self.lastactive = 1.0
