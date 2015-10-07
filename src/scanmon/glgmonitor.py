@@ -5,6 +5,10 @@ from datetime import datetime, timedelta
 import decimal
 import logging
 import sqlite3
+import os
+import sys
+import threading
+import queue
 
 # Import our private modules
 from scanmon.receivingstate import ReceivingState
@@ -40,6 +44,81 @@ class Reception:
             return self.sys_id == other.sys_id and self.Starttime == other.Starttime
         else:
             raise ValueError
+
+class Titler(threading.Thread):
+#    The URL below runs curl to update the icecast stream.
+#    It needs to really be done in python but we will test with this one ...
+
+    _TITLECMD = """curl \
+    -u admin:carroll \
+    --url http://scanmon.greybeard.org:8000/admin/metadata \
+    --data-urlencode mount=/stream \
+    --data-urlencode mode=updinfo \
+    --get \
+    --silent \
+    --show-error \
+    --write-out %{url_effective}-(%{http_code})\\n \
+    --output updatetitle.out \
+    --dump-header updatetitle.hdrs \
+    --data-urlencode""".split()     # "song=newtitle" is appending before execution
+
+    def __init__(self):
+        super().__init__()
+        self.daemon = True
+        self.name = "**Titler**"
+
+    def run(self):
+# Set up logging
+        self.__logger = logging.getLogger().getChild(__name__)
+        self.__logger.info(__class__.__name__+': Initializing')
+        self.titleQueue = queue.Queue()
+        self.running = True
+        self.__logger.setLevel(logging.INFO)    # Keep the info logging until we get started
+        self.__logger.info(__class__.__name__+': Running')
+        while self.running:
+            try:
+                newTitle = self.titleQueue.get(timeout = 1)
+                self.updateTitle(newTitle)
+            except queue.Empty:
+                pass    # Empty is OK
+            except Exception as e:
+                self.__logger.exception("Titler error")
+                self.running = False
+        self.__logger.info(__class__.__name__+': Stopping')
+
+    def stop(self):
+        self.__logger.info(__class__.__name__+': Stop requested')
+        self.running = False
+
+    def put(self, newTitle):
+        self.__logger.debug("title: "+newTitle)
+        self.titleQueue.put(newTitle)
+
+# We are using curl to update the title by using the icecast2 admin page
+# This should be a direct http call from here but that will be another day.
+    def updateTitle(self, title):
+        self.__logger.debug("updateTitle: %s", title)
+        #return  # Disabled for now?
+        updpid = os.fork()
+        if updpid > 0:
+            os.waitpid(updpid, 0)
+        elif updpid == 0:
+            try:
+                newtitle = self._TITLECMD[:]     # Make a copy
+                newtitle.append("song=" + title)
+
+                sys.stdout = open("updatetitle.stdout", "w")
+                os.dup2(sys.stdout.fileno(), 1)
+                sys.stderr = open("updatetitle.stderr", "w")
+                os.dup2(sys.stderr.fileno(), 2)
+                os.execvp(newtitle[0], newtitle)
+                # WILL NOT RETURN
+            except:
+                self.__logger.exception("Error during update")
+                sys.exit(os.EX_SOFTWARE)
+        else:
+            self.__logger.critical("Fork failed {}", updpid)
+            sys.exit("Fork failed: ".format(updpid))
 
 class GLGMonitor(ReceivingState):
     """Class to hold monitoring info for GLG monitoring.
@@ -89,6 +168,9 @@ class GLGMonitor(ReceivingState):
             self.__initdb__(args.database)
         else:
             self.__initdb__(':memory:')
+        self.titleUpdater = Titler()
+        self.titleUpdater.start()
+        self.__logger.setLevel(logging.ERROR)    # Keep the info logging until we get started
 
     def __initdb__(self, database):
         """Initialize the database for storing Receptions and tracking lastseen."""
@@ -202,6 +284,7 @@ class GLGMonitor(ReceivingState):
     def scrollWin(self):
         """Scroll the output window."""
         self.__logger.debug("")
+        self.titleUpdater.put("Bethel/Danbury, CT Fire/EMS Scanner")     # Default idle title
         try:
             self.monwin.putline('\u2026Idle\u2026', scroll = True)
         except:
@@ -233,6 +316,7 @@ class GLGMonitor(ReceivingState):
                         frq=frq,
                         ctc=self.reception.CTCSS_DCS,
                         last=lastseen)
+            self.titleUpdater.put("{sys}|{grp}|{chan}".format(sys=self.reception.System, grp=self.reception.Group, chan=self.reception.Channel))
         self.monwin.putline("{info:s}| dur={dur}".format(
                 dur=self.reception.Duration,
                 info = self.reception.infocache),
@@ -284,3 +368,4 @@ class GLGMonitor(ReceivingState):
                 self.writeDatabase()
         else:
             raise RuntimeError("Invalid GLG monitor state: {}".format(self.state))
+
