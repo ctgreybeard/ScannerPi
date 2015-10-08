@@ -5,10 +5,11 @@ from datetime import datetime, timedelta
 import decimal
 import logging
 import sqlite3
-import os
+import requests
 import sys
 import threading
 import queue
+import time
 
 # Import our private modules
 from scanmon.receivingstate import ReceivingState
@@ -49,35 +50,41 @@ class Titler(threading.Thread):
 #    The URL below runs curl to update the icecast stream.
 #    It needs to really be done in python but we will test with this one ...
 
-    _TITLECMD = """curl \
-    -u admin:carroll \
-    --url http://scanmon.greybeard.org:8000/admin/metadata \
-    --data-urlencode mount=/stream \
-    --data-urlencode mode=updinfo \
-    --get \
-    --silent \
-    --show-error \
-    --write-out %{url_effective}-(%{http_code})\\n \
-    --output updatetitle.out \
-    --dump-header updatetitle.hdrs \
-    --data-urlencode X""".split()     # "song=newtitle" replaces X before execution
+    _AUTH = ('admin', 'carroll')
+    _URL = 'http://localhost:8000/admin/metadata'
+    _TITLEPARAMS = {
+        'mount': '/stream',
+        'mode': 'updinfo',
+    }
 
     def __init__(self):
         super().__init__()
+        self.__logger = logging.getLogger().getChild(__name__+"."+__class__.__name__)
+        requests_log = logging.getLogger("requests.packages.urllib3")
+        requests_log.setLevel(logging.INFO)
+        requests_log.propagate = True
+        self.titleQueue = queue.Queue()
         self.daemon = True
         self.name = "**Titler**"
 
     def run(self):
 # Set up logging
         self.__logger = logging.getLogger().getChild(__name__+"."+__class__.__name__)
-        self.titleQueue = queue.Queue()
         self.running = True
         self.__logger.setLevel(logging.INFO)    # Keep the info logging until we get started
         self.__logger.info(__class__.__name__+': Running')
+        self.requestsSession = requests.Session()
+        self.requestsSession.auth = self._AUTH
+        self.requestsSession.params = self._TITLEPARAMS
+        requests_log = logging.getLogger("requests.packages.urllib3")
+        requests_log.setLevel(logging.ERROR)    # Turn off INFO for now
         while self.running:
             try:
                 newTitle = self.titleQueue.get(timeout = 1)
-                self.updateTitle(newTitle)
+                if newTitle is not None:
+                    self.updateTitle(newTitle)
+                else:
+                    self.running = False
             except queue.Empty:
                 pass    # Empty is OK
             except Exception as e:
@@ -93,30 +100,16 @@ class Titler(threading.Thread):
         self.__logger.debug("title: "+newTitle)
         self.titleQueue.put(newTitle)
 
-# We are using curl to update the title by using the icecast2 admin page
-# This should be a direct http call from here but that will be another day.
     def updateTitle(self, title):
         self.__logger.debug("updateTitle: %s", title)
-        #return  # Disabled for now?
-        updpid = os.fork()
-        if updpid > 0:
-            os.waitpid(updpid, 0)
-        elif updpid == 0:
-            try:
-                self._TITLECMD[-1] = "song=" + title
-
-                sys.stdout = open("updatetitle.stdout", "w")
-                os.dup2(sys.stdout.fileno(), 1)
-                sys.stderr = open("updatetitle.stderr", "w")
-                os.dup2(sys.stderr.fileno(), 2)
-                os.execvp(self._TITLECMD[0], self._TITLECMD)
-                # WILL NOT RETURN
-            except:
-                self.__logger.exception("Error during update")
-                sys.exit(os.EX_SOFTWARE)
-        else:
-            self.__logger.critical("Fork failed {}", updpid)
-            sys.exit("Fork failed: ".format(updpid))
+        try:
+            r = self.requestsSession.get(self._URL, params={'song': title})
+            if r.status_code != requests.status_codes.codes.ok:
+                self.__logger.error('Title update request error (%d): %s', r.status_code, r.text)
+        except requests.exceptions.RequestException as e:
+            self.__logger.exception("Error in title update request")
+        except Exception as e:
+            self.__logger.exception("System error during title update")
 
 class GLGMonitor(ReceivingState):
     """Class to hold monitoring info for GLG monitoring.
@@ -127,6 +120,7 @@ class GLGMonitor(ReceivingState):
     TAGNONE = -1    # System and Channel tag NONE
     _TIMEFMT = '%H:%M:%S'
     _EPOCH = 3600 * 24 * 356    # A year of seconds (sort of ...)
+    _DEFTITLE = "Bethel/Danbury, CT Fire/EMS Scanner"
 
     @property
     def sys_id(self):
@@ -168,6 +162,7 @@ class GLGMonitor(ReceivingState):
             self.__initdb__(':memory:')
         self.titleUpdater = Titler()
         self.titleUpdater.start()
+        self.titleUpdater.put(GLGMonitor._DEFTITLE)     # Default idle title
         self.__logger.setLevel(logging.ERROR)    # Keep the info logging until we get started
 
     def __initdb__(self, database):
@@ -282,7 +277,7 @@ class GLGMonitor(ReceivingState):
     def scrollWin(self):
         """Scroll the output window."""
         self.__logger.debug("")
-        self.titleUpdater.put("Bethel/Danbury, CT Fire/EMS Scanner")     # Default idle title
+        self.titleUpdater.put(GLGMonitor._DEFTITLE)     # Default idle title
         try:
             self.monwin.putline('\u2026Idle\u2026', scroll = True)
         except:
