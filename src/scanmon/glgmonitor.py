@@ -47,8 +47,7 @@ class Reception:
             raise ValueError
 
 class Titler(threading.Thread):
-#    The URL below runs curl to update the icecast stream.
-#    It needs to really be done in python but we will test with this one ...
+#    The URL below updates the icecast stream.
 
     _AUTH = ('admin', 'carroll')
     _URL = 'http://localhost:8000/admin/metadata'
