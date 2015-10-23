@@ -8,5 +8,5 @@ from . import ScannerDecodeError, Response
 varlist = ('CMD', 'VER')
 
 def display(response):
-	"""Format a string to use as a generic display for the response."""
-	return 'Scanner software {}'.format(response.VER)
+    """Format a string to use as a generic display for the response."""
+    return 'Scanner software {}'.format(response.VER)
