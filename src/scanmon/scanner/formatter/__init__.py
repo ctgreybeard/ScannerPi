@@ -31,14 +31,14 @@ class Response:
     """A generic response class. Handles deconstruction of arbitrary scanner responses.
 
     Attributes:
-        CMD -- The first word of the response or Null
-        status -- 'OK', 'NG', 'ERR', or 'DECODEERROR'
-            OK -- Response was 'OK' or response was decoded correctly
-            NG -- Response was 'NG' (Command invalid at this time)
-            ERR -- Error response from scanner (Command format error / Value error, Framing error, Overrun error)
-        response -- The original response string (trailing '\r' removed if any existed)
-        parts -- ordered list of the parsed response
-        *values* -- decoded terms. Names are in UPPER CASE as given in the BCD396XT Complete Reference
+        CMD: The first word of the response or Null
+        status: 'OK', 'NG', 'ERR', or 'DECODEERROR'
+            OK: Response was 'OK' or response was decoded correctly
+            NG: Response was 'NG' (Command invalid at this time)
+            ERR: Error response from scanner (Command format error / Value error, Framing error, Overrun error)
+        response: The original response string (trailing '\\\\r' removed if any existed)
+        parts: ordered list of the parsed response
+        *values*: decoded terms. Names are in UPPER CASE as given in the BCD396XT Complete Reference
             This is implemented such that ANY upper case name is available to be retrieved.
             Names not set by the response return None.
             Duplicate names (typically "RSV") are numbered from 1 after the first: RSV, RSV1, RSV2, etc.

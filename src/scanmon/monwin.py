@@ -1,4 +1,6 @@
-# New Scanmon window based on urwid
+"""
+New Scanmon window based on urwid
+"""
 
 import logging
 import urwid
@@ -10,73 +12,36 @@ import sys
 import serial
 from uuid import uuid4
 
-class MonWin(urwid.MainLoop):
+class Monwin(urwid.MainLoop):
+    """
+    Main class for the window.
 
-    class CallbackQueue(object):
-        '''Creates a queue of callback objects.
-        Each object is a tuple of (response code, handle, callback, repeat)
-        These are stored within lists in a dict under ther response code.
-        The response code is always upper case as a key but may be either in the
-        list entry.
-        '''
-        def __init__():
-            self.queue = dict()
-
-        def put(code, callback, repeat = False):
-            handle = uuid4()
-            rcode = code.upper()
-            try:
-                clist = self.queue[rcode]
-            except KeyError:
-                clist = []
-            clist.append((handle, callback, repeat))
-            self.queue[rcode] = clist
-            return handle
-
-        def drop(code, handle):
-            rcode = code.upper()
-            found = False
-
-            try:
-                clist = self.queue[rcode]
-                for n in range(len(clist)):
-                    z = clist[n]
-                    if handle == z[0]:
-                        del clist[n]
-                        self.queue[rcode] = clist
-                        found = True
-                        break
-            except KeyError:
-                pass
-
-
-            return found
-
-        def get(code):
-            try:
-                retval = self.queue[code.upper()]
-            except KeyError:
-                retval = []
-
-            return retval
-
-        def doCalls(code):
-            callList = self.get(code)[:]
-            dList = []
-            for n in range(len(callList)):
-                callList[n][1]()
-                if not callList[n][2]:
-                    self.drop(code, callList[n][0])
+    Handles all display functions, command entry, monitors the scanner for input.
+    """
 
     class CmdLine(urwid.WidgetWrap):
+        """
+        The command line input area.
+
+        Posts any command entered to the command queue when Enter is pressed.
+        """
 
         def __init__(self, cmdQueue):
+            """
+            Initialize the CmdLine class.
+
+            Args:
+                cmdQueue (Queue): the queue into which to put the entered comands.
+            """
             self.logger = logging.getLogger(__name__)
             self.cmdQueue = cmdQueue
             super().__init__(Edit(caption=('green', "Cmd> "), wrap = 'clip'))
 
         def keypress(self, size, key):
-            #self.logger.debug('kepress: {}'.format(key))
+            """
+            Watch for the Enter key and post commands to the command queue.
+            """
+
             try:
                 keyret = self._w.keypress(size, key)
                 if keyret == 'enter':
@@ -91,8 +56,19 @@ class MonWin(urwid.MainLoop):
             return keyret
 
     class ScrollWin(urwid.WidgetWrap):
+        """
+        Main scrolling windows within the program window.
+
+        These handle auto scrolling and mouse scrolling.
+        """
 
         def __init__(self, title = None):
+            """
+            Initialize the ScrollWin.
+
+            Args:
+                title (str): Optional title string for the window header.
+            """
             self.logger = logging.getLogger(__name__)
             self.scroller = ListBox(SimpleFocusListWalker([]))
             if title:
@@ -102,6 +78,14 @@ class MonWin(urwid.MainLoop):
             return super().__init__(Frame(self.scroller, header = self.frameTitle))
 
         def append(self, wid):
+            """
+            Append a line to the indow contents.
+
+            Args:
+                wid (str, Widget, or tuple): The line to append to the window contents.
+                    May be a plain string, an urwid Widget, or a tuple with an attributed string.
+            """
+
             try:
                 focusNow = self.scroller.focus_position
             except:
@@ -189,11 +173,11 @@ class MonWin(urwid.MainLoop):
             ('weight', 60, Divider('-'))
             ])
 
-        footer = MonWin.CmdLine(self.doCmdQueue)
+        footer = Monwin.CmdLine(self.doCmdQueue)
 
-        self.msg = MonWin.ScrollWin('Messages')
-        self.glg = MonWin.ScrollWin('Channel Monitor')
-        self.resp = MonWin.ScrollWin('Command Response')
+        self.msg = Monwin.ScrollWin('Messages')
+        self.glg = Monwin.ScrollWin('Channel Monitor')
+        self.resp = Monwin.ScrollWin('Command Response')
         self.windows = {'msg': self.msg, 'glg': self.glg, 'resp': self.resp}
 
         body = Pile([
@@ -305,23 +289,23 @@ class MonWin(urwid.MainLoop):
         I believe this works around a bug in urwid'''
         mainLoop.set_alarm_in(0.5, mainLoop.doNothing)
 
-def loopTest():
+def _loopTest():
     dologger = logging.getLogger(__name__)
     dologger.info('starting')
-    global loopTestTime
+    global _loopTestTime
     loopTestTime = "I'm not done yet!"
-    dologger.debug(loopTestTime)
+    dologger.debug(_loopTestTime)
     monwin.putline('msg', loopTestTime, 'WARN')
     now1 = time.time()
     time.sleep(5)
     now2 = time.time()
-    loopTestTime = "loopTest took {:5.3f} seconds".format(now2 - now1)
+    loopTestTime = "_loopTest took {:5.3f} seconds".format(now2 - now1)
     monwin.putline('msg', loopTestTime, 'ALERT')
     monwin.setText(monwin.ver, 'Ver 2.3.4')
 
-    dologger.info(loopTestTime)
+    dologger.info(_loopTestTime)
 
-def doCommands(monwin, queue):
+def _doCommands(monwin, queue):
     dologger = logging.getLogger(__name__)
     dologger.info('starting')
     while True:
@@ -351,14 +335,14 @@ def doCommands(monwin, queue):
 if __name__ == '__main__':
     doCmdQueue = queue.Queue()
     fmt = '%(asctime)s -%(levelname)s- *%(threadName)s* %%%(funcName)s%% %(message)s'
-    logging.basicConfig(filename='MonWin.log', filemode = 'w', level=logging.DEBUG, format = fmt)
+    logging.basicConfig(filename='Monwin.log', filemode = 'w', level=logging.DEBUG, format = fmt)
     logger = logging.getLogger(__name__)
     now1 = time.time()
 
-    monwin = MonWin(doCmdQueue)
+    monwin = Monwin(doCmdQueue)
 
-    lt = threading.Thread(target=loopTest, name = 'LoopTest')
-    dc = threading.Thread(target=doCommands, name = 'DoCommands', args = (monwin, doCmdQueue))
+    lt = threading.Thread(target=_loopTest, name = 'LoopTest')
+    dc = threading.Thread(target=_doCommands, name = 'DoCommands', args = (monwin, doCmdQueue))
     monwin.doNothing(monwin, None)
     lt.start()
     dc.start()
