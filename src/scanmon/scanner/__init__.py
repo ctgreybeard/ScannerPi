@@ -15,6 +15,7 @@ import codecs
 import logging
 from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
 from threading import RLock
+from collections import UserDict
 
 from .formatter import Response
 
@@ -84,6 +85,61 @@ def _setio(ttyio):
     if attrs != nattrs:
         termios.tcsetattr(ttyio, termios.TCSAFLUSH, nattrs)
 
+class ResponseQueue(UserDict):
+    """Convenience method to supply default value"""
+    def __missing__(self):
+        return []
+
+class Command:
+    """
+    Comand -- A command send request with an option callback
+
+    Arguments:
+        cmdstring: the entire scanner command string without \\\\r termination
+        callback: optional callback for the response string
+        userdata: optional user data object to return to the callback
+
+    The callback function is given two arguments, the Response object
+    from the command response and the userdata object from the original request.
+    The callback must return a boolean indicating whether it is complete. A True
+    return causes the callback to be removed from the queue, a False response
+    will retain the callback where it will be called again for any responses
+    from the requested command.
+    """
+
+    def __init__(cmdstring, callback = None, userdata = None):
+        self._cmdstring = cmdstring
+        self._callback = callback
+        self._userdata = userdata
+        (self._cmd, _, _) = cmdstring.partition(',')
+        if len(self._cmd) == 0:
+            raise ValueError('CMD must not be null')
+
+    @property
+    def cmdstring(self):
+        '''The string to send to the scanner'''
+        return self._cmdstring
+
+    @property
+    def callback(self):
+        '''The callback to receive any response for this command.
+
+        Callback returns True if the processing is complete.'''
+        return self._callback
+
+    @property
+    def userdata(self):
+        '''user data object supplied to the callback function'''
+        return self._userdata
+
+    @property
+    def cmd(self):
+        '''The base command to the scanner always upper case'''
+        return self._cmd.upper()
+
+    def __repr__self():
+        print("Command({}, callback={}, userdata={}".format(self._cmdstring, self._callback, self._userdata))
+
 class Scanner:
     """
     Scanner -- Defines data and control structures to control.
@@ -130,21 +186,19 @@ class Scanner:
                 pass
 
         if self.device is None:
-            self.__logger.critical("scanner: \"%s\" not found or not suitable", devs)
-            raise IOError("\"{}\" not found or not suitable".format(devs))
+            self.__logger.critical('scanner: "%s" not found or not suitable', devs)
+            raise IOError('"{}" not found or not suitable'.format(devs))
 
         try:
             self._serscanner = serial.Serial(port = self.device, baudrate = _BAUDRATE, timeout = _TIMEOUT)
-        except serial.SerialException as serexcept:
-            self.__logger.critical("scanner: \"%s\" not accessable", self.device)
-            raise serexcept
+        except serial.SerialException:
+            self.__logger.exception("scanner: \"%s\" not accessable", self.device)
+            raise
 
         _setio(self._serscanner)
         self._serscanner.flushInput()
         self._serscanner.flushOutput()
 
-        self._scanio = io.TextIOWrapper(io.BufferedRWPair(self._serscanner, self._serscanner),
-            errors = _ENCERRORS, encoding = _ENCODING, newline = _NEWLINE)
         for c in ('MDL', 'VER'):
             r = self.command(c)
             if r.status == Response.RESP:
@@ -152,41 +206,65 @@ class Scanner:
             else:
                 raise IOError("Scanner did not properly respond to {} command, status={}".format(c, r.status))
 
+        self._rQueue = ResponseQueue()
+        self._readBuf = ''
+
+    @property
+    def fileno(self):
+        '''Retruns the file descriptor for the underlying Serial stream'''
+        return self._serscanner.fileno()
+
+    def watchCommand(self, command):
+        if isinstance(command, Command):
+            if command.callback is not None:
+                self._rQueue[command.cmd] = self._rQueue[command.cmd].append(command)
+        else:
+            raise ValueError('watchCommand requires a Command instance')
+
+    def doCommand(self, response):
+        (cmd, _, _) = response.upper().partition(',')
+        clist = self._rQueue[cmd]
+        for c in clist[:]:
+            if c.callback(response, c):
+                clist.remove(c)
+
     def close(self):
         """Close the streams from and to the scanner."""
         if self._serscanner:
             self._serscanner.close()
 
-    def readline(self):
-        """Read an input line from the scanner.
+    def readScanner(self):
+        '''Read available input from the scanner.
+        If a complete line is found then post it to the response queue for action.'''
 
-        Note that this is a non-blocking read, it will timeout in _TIMEOUT seconds."""
-        with self.iolock:
-            response = self._scanio.readline()
+        self.__logger.debug('Reading')
+        while self._serscanner.inWaiting() > 0:
+            readIt = self._serscanner.read(self._serscanner.inWaiting())
+            self._readBuf += readIt
+            self.__logger.debug('Scanner sent: ' + repr(self._readBuf))
 
-            if response and isinstance(response, str):
-                response = response.rstrip(_NEWLINE)
-
-        return response
+        while b'\r' in self._readBuf:
+            (rLine, sep, self._readBuf) = self._readBuf.partition(b'\r')
+            rLine = rLine.decode(errors='ignore')
+            self.__logger.debug('Read scanner: ' + repr(rLine))
+            self.doCommand(rLine)
 
     def writeline(self, line):
         """Write a line to the scanner.
 
         Note that this is a blocking write but there should be no reason for it to block."""
         with self.iolock:
-            written = self._scanio.write(line)
+            written = self._serscanner.write(line)
             # Send the '\r' newline
-            self._scanio.write(_NEWLINE)
+            self._serscanner.write(_NEWLINE)
             # And flush all output completely
-            self._scanio.flush()
             self._serscanner.flushOutput()
 
-        return written + 1
-
     def command(self, cmdline):
-        """Send one command, read the response, apply formatting and return the result."""
-        with self.iolock:
-            self.writeline(cmdline)
-            reply = self.readline()
-
-        return Response(reply)
+        """Send one command, queue the callback if supplied to the response queue"""
+        if isinstance(cmdline, Command):
+            self.watchCommand(cmdline)
+            with self.iolock:
+                self.writeline(cmdline.cmdstring)
+        else:
+            raise ValueError('command takes a Command argument')
