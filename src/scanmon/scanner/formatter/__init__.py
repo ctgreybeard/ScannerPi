@@ -27,18 +27,18 @@ def gendisplay(response):
         resp = '?'
     return resp
 
-class Response:
+class Response(object):
     """A generic response class. Handles deconstruction of arbitrary scanner responses.
 
     Attributes:
-        CMD -- The first word of the response or Null
-        status -- 'OK', 'NG', 'ERR', or 'DECODEERROR'
-            OK -- Response was 'OK' or response was decoded correctly
-            NG -- Response was 'NG' (Command invalid at this time)
-            ERR -- Error response from scanner (Command format error / Value error, Framing error, Overrun error)
-        response -- The original response string (trailing '\r' removed if any existed)
-        parts -- ordered list of the parsed response
-        *values* -- decoded terms. Names are in UPPER CASE as given in the BCD396XT Complete Reference
+        CMD: The first word of the response or Null
+        status: 'OK', 'NG', 'ERR', or 'DECODEERROR'
+            OK: Response was 'OK' or response was decoded correctly
+            NG: Response was 'NG' (Command invalid at this time)
+            ERR: Error response from scanner (Command format error / Value error, Framing error, Overrun error)
+        response: The original response string (trailing '\\\\r' removed if any existed)
+        parts: ordered list of the parsed response
+        *values*: decoded terms. Names are in UPPER CASE as given in the BCD396XT Complete Reference
             This is implemented such that ANY upper case name is available to be retrieved.
             Names not set by the response return None.
             Duplicate names (typically "RSV") are numbered from 1 after the first: RSV, RSV1, RSV2, etc.
@@ -57,15 +57,15 @@ class Response:
         """Initialize the instance, load a specific format if available.
 
         Arguments:
-        response -- The returned string from the scanner
+            response: The returned string from the scanner
 
         Process:
-        Separate the pieces of the response using ',' separator
-        If a first piece exists look for a decoder for it
-        Load and execute the appropriate decoder if found
-        Otherwise decode by separating the parts using ','
-        If the second piece is 'Response.ERR' or 'Response.NG' set the error flags appropriately
-        If the response is Null or None set the error flags
+            Separate the pieces of the response using ',' separator
+            If a first piece exists look for a decoder for it
+            Load and execute the appropriate decoder if found
+            Otherwise decode by separating the parts using ','
+            If the second piece is 'Response.ERR' or 'Response.NG' set the error flags appropriately
+            If the response is Null or None set the error flags
         """
 
         # Ensure that we have values for the necessary attributes
