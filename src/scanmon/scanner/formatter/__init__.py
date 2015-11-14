@@ -27,7 +27,7 @@ def gendisplay(response):
         resp = '?'
     return resp
 
-class Response:
+class Response(object):
     """A generic response class. Handles deconstruction of arbitrary scanner responses.
 
     Attributes:
@@ -57,15 +57,15 @@ class Response:
         """Initialize the instance, load a specific format if available.
 
         Arguments:
-        response -- The returned string from the scanner
+            response: The returned string from the scanner
 
         Process:
-        Separate the pieces of the response using ',' separator
-        If a first piece exists look for a decoder for it
-        Load and execute the appropriate decoder if found
-        Otherwise decode by separating the parts using ','
-        If the second piece is 'Response.ERR' or 'Response.NG' set the error flags appropriately
-        If the response is Null or None set the error flags
+            Separate the pieces of the response using ',' separator
+            If a first piece exists look for a decoder for it
+            Load and execute the appropriate decoder if found
+            Otherwise decode by separating the parts using ','
+            If the second piece is 'Response.ERR' or 'Response.NG' set the error flags appropriately
+            If the response is Null or None set the error flags
         """
 
         # Ensure that we have values for the necessary attributes

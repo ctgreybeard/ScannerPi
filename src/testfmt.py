@@ -1,10 +1,11 @@
+# -*- coding: utf-8 -*-
 """
 Test the formatter module.
 
 This does nothing for the scanmon module.
-"""
 
-from scanner.formatter import Response
+Some example response strings are run through the formatter and the results printed.
+"""
 
 if __name__ == '__main__':
     GLG = 'GLG,0463.0000,FM,0,0,Public Safety,EMS MED Channels,Med 1,1,0,NONE,NONE,NONE'
