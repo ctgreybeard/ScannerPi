@@ -58,3 +58,5 @@ Session*.vim
 
 # Project working files we don't need to track
 scanmon*.db
+docs/*.html
+docs/pystyle.css
