@@ -299,13 +299,14 @@ class GLGMonitor(ReceivingState):
                 lastseen = str(timedelta(d.days, d.seconds, 0))
             else:
                 lastseen = '*Forever'
+
             self.reception.infocache = \
                 "{time:s}: Sys={sys:.<16s}|Grp={grp:.<16s}|Chan={chn:.<16s}|Freq={frq:#9.4f}|C/D={ctc:>3s} last={last:>8s}". \
                     format(time=self.reception.Starttime.strftime(GLGMonitor._TIMEFMT),
                         sys=self.reception.System,
                         grp=self.reception.Group,
                         chn=self.reception.Channel,
-                        frq=frq,
+                        frq=float(frq),
                         ctc=self.reception.CTCSS_DCS,
                         last=lastseen)
             self.titleUpdater.put("{sys}|{grp}|{chan}".format(sys=self.reception.System, grp=self.reception.Group, chan=self.reception.Channel))
