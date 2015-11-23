@@ -36,6 +36,9 @@ extensions = [
     'sphinx.ext.napoleon',
 ]
 
+# napolean configuration items
+napoleon_include_private_with_doc = True
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -52,7 +55,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Scanmon - Uniden scanner monitor'
-copyright = '2015, William C Waggoner'
+copyright = '2015 - William C Waggoner'
 author = 'William C Waggoner'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -79,7 +82,7 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['_build']
+exclude_patterns = ['_build', '__pycache__']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -113,7 +116,7 @@ todo_include_todos = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -125,10 +128,10 @@ html_theme = 'alabaster'
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".
-#html_title = None
+html_title = 'Scanmon Documentation'
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
-#html_short_title = None
+html_short_title = 'Scanmon'
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
@@ -151,7 +154,7 @@ html_static_path = ['_static']
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
-#html_last_updated_fmt = '%b %d, %Y'
+html_last_updated_fmt = '%b %d, %Y'
 
 # If true, SmartyPants will be used to convert quotes and dashes to
 # typographically correct entities.

@@ -2,7 +2,7 @@
 
 from scanmon.scanner.formatter import ScannerDecodeError, Response
 
-varlist = ('CMD','FRQ_TGID','MOD','ATT','CTCSS_DCS','NAME1','NAME2','NAME3','SQL','MUT','SYS_TAG','CHAN_TAG','P25NAC')
+VARLIST = ('CMD', 'FRQ_TGID', 'MOD', 'ATT', 'CTCSS_DCS', 'NAME1', 'NAME2', 'NAME3', 'SQL', 'MUT', 'SYS_TAG', 'CHAN_TAG', 'P25NAC')
 
 def display(response):
     try:

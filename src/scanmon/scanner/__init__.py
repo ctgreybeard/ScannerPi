@@ -55,26 +55,26 @@ def _setio(ttyio):
     # no local output processing
 
     nattrs[oflag] &= ~(termios.OCRNL | termios.ONLCR | termios.ONLRET |
-        termios.ONOCR | termios.OFILL | termios.OLCUC | termios.OPOST);
+        termios.ONOCR | termios.OFILL | termios.OLCUC | termios.OPOST)
 
     # No line processing:
     # echo off, echo newline off, canonical mode off,
     # extended input processing off, signal chars off
 
-    attrs[lflag] &= ~(termios.ECHO | termios.ECHONL | termios.ICANON | termios.IEXTEN | termios.ISIG);
+    attrs[lflag] &= ~(termios.ECHO | termios.ECHONL | termios.ICANON | termios.IEXTEN | termios.ISIG)
 
     # Turn off character processing
     # clear current char size mask, no parity checking,
     # no output processing, force 8 bit input
 
-    nattrs[cflag] &= ~(termios.CSIZE | termios.PARENB);
-    nattrs[cflag] |= termios.CS8;
+    nattrs[cflag] &= ~(termios.CSIZE | termios.PARENB)
+    nattrs[cflag] |= termios.CS8
 
     # One input byte is enough to return from read()
     # Inter-character timer off
 
-    nattrs[cc][termios.VMIN]  = 1;
-    nattrs[cc][termios.VTIME] = 0;
+    nattrs[cc][termios.VMIN]  = 1
+    nattrs[cc][termios.VTIME] = 0
 
     # Communication speed (simple version, using the predefined
     # constants)
@@ -87,10 +87,10 @@ def _setio(ttyio):
 
 class ResponseQueue(UserDict):
     """Convenience method to supply default value"""
-    def __missing__(self):
+    def __missing__(self, key):
         return []
 
-class Command:
+class Command(object):
     """
     Comand -- A command send request with an option callback
 
@@ -107,13 +107,14 @@ class Command:
     from the requested command.
     """
 
-    def __init__(cmdstring, callback = None, userdata = None):
+    def __init__(self, cmdstring, callback=None, userdata=None):
+        (cmd, _, _) = cmdstring.partition(',')
+        if len(cmd) == 0:
+            raise ValueError('CMD must not be null')
+        self._cmd = cmd.upper()
         self._cmdstring = cmdstring
         self._callback = callback
         self._userdata = userdata
-        (self._cmd, _, _) = cmdstring.partition(',')
-        if len(self._cmd) == 0:
-            raise ValueError('CMD must not be null')
 
     @property
     def cmdstring(self):
@@ -134,26 +135,22 @@ class Command:
 
     @property
     def cmd(self):
-        '''The base command to the scanner always upper case'''
-        return self._cmd.upper()
+        """The base command to the scanner always upper case
+        """
+        return self._cmd
 
-    def __repr__self():
+    def __repr__(self):
         print("Command({}, callback={}, userdata={}".format(self._cmdstring, self._callback, self._userdata))
 
-class Scanner:
+class Scanner(object):
     """
     Scanner -- Defines data and control structures to control.
 
     Arguments:
-        device -- Optional. The name of the USB Serial connection.
-        This is usually "/dev/ttyUSB0" or "/dev/ttyUSB1". The class will attempt to use one or the other
-        if the device is not indicated.
-
-    Methods:
-        readline -- Read one line of response from the scanner.
-        writeline -- Write one line of text to the scanner
-        close    -- Cease operations on the scanner.
-        reopen   -- Reopen a closed connection to the scanner
+        device: Optional. The name of the USB Serial connection.
+            This is usually ``/dev/ttyUSB0`` or ``/dev/ttyUSB1``.
+            The class will attempt to use one or the other
+            if the device is not indicated.
     """
 
     def __init__(self, device = None):
@@ -166,7 +163,7 @@ class Scanner:
         """
 
 # Initialize the logger
-        self.__logger = logging.getLogger().getChild(__name__)
+        self.__logger = logging.getLogger(__name__)
         self.__logger.info("Initializing scanner")
         self.iolock = RLock()
         if device is None:
@@ -178,19 +175,16 @@ class Scanner:
 
         self.device = None
         for d in devs:
-            try:
-                if stat.S_ISCHR(os.stat(d).st_mode) and os.access(d, os.W_OK):
-                    self.device = d
-                    break   # We found it
-            except:
-                pass
+            if stat.S_ISCHR(os.stat(d).st_mode) and os.access(d, os.W_OK):
+                self.device = d
+                break   # We found it
 
         if self.device is None:
             self.__logger.critical('scanner: "%s" not found or not suitable', devs)
             raise IOError('"{}" not found or not suitable'.format(devs))
 
         try:
-            self._serscanner = serial.Serial(port = self.device, baudrate = _BAUDRATE, timeout = _TIMEOUT)
+            self._serscanner = serial.Serial(port=self.device, baudrate=_BAUDRATE, timeout=_TIMEOUT)
         except serial.SerialException:
             self.__logger.exception("scanner: \"%s\" not accessable", self.device)
             raise
@@ -199,72 +193,90 @@ class Scanner:
         self._serscanner.flushInput()
         self._serscanner.flushOutput()
 
-        for c in ('MDL', 'VER'):
-            r = self.command(c)
-            if r.status == Response.RESP:
-                setattr(self, c, r.parts[1])
-            else:
-                raise IOError("Scanner did not properly respond to {} command, status={}".format(c, r.status))
-
-        self._rQueue = ResponseQueue()
-        self._readBuf = ''
+        self._response_queue = ResponseQueue()
+        self._read_buffer = ''
 
     @property
     def fileno(self):
-        '''Retruns the file descriptor for the underlying Serial stream'''
+        '''Returns the file descriptor for the underlying Serial stream'''
         return self._serscanner.fileno()
 
-    def watchCommand(self, command):
+    def watch_command(self, command):
+        """Set a *"watch"* for a command response.
+
+        Args:
+            command: an instance of Command containing the command to monitor.
+
+        Note:
+            The callback included is called by read_scanner when this response is received.
+            When the callback returns ``True`` the watch is removed.
+        """
+
         if isinstance(command, Command):
             if command.callback is not None:
-                self._rQueue[command.cmd] = self._rQueue[command.cmd].append(command)
+                self._response_queue[command.cmd] += (command, )
         else:
-            raise ValueError('watchCommand requires a Command instance')
-
-    def doCommand(self, response):
-        (cmd, _, _) = response.upper().partition(',')
-        clist = self._rQueue[cmd]
-        for c in clist[:]:
-            if c.callback(response, c):
-                clist.remove(c)
+            raise ValueError('watch_command requires a Command instance')
 
     def close(self):
-        """Close the streams from and to the scanner."""
+        """Close the streams from and to the scanner.
+        """
         if self._serscanner:
             self._serscanner.close()
 
-    def readScanner(self):
-        '''Read available input from the scanner.
-        If a complete line is found then post it to the response queue for action.'''
+    def read_scanner(self):
+        """Read available input from the scanner.
+
+        If a complete line is found then perform any callbacks if found.
+        """
 
         self.__logger.debug('Reading')
+
         while self._serscanner.inWaiting() > 0:
             readIt = self._serscanner.read(self._serscanner.inWaiting())
-            self._readBuf += readIt
-            self.__logger.debug('Scanner sent: ' + repr(self._readBuf))
+            self._read_buffer += readIt
+            self.__logger.debug('Scanner sent: ' + repr(self._read_buffer))
 
-        while b'\r' in self._readBuf:
-            (rLine, sep, self._readBuf) = self._readBuf.partition(b'\r')
-            rLine = rLine.decode(errors='ignore')
-            self.__logger.debug('Read scanner: ' + repr(rLine))
-            self.doCommand(rLine)
+        while b'\r' in self._read_buffer:
+            (read_line, _, self._read_buffer) = self._read_buffer.partition(b'\r')
+            read_line = read_line.decode(errors='ignore')
+            self.__logger.debug('Read scanner: ' + repr(read_line))
+            response = Response(read_line)
+            clist = self._response_queue[response.CMD]
 
-    def writeline(self, line):
+            if len(clist) == 0:
+                clist = self._response_queue['*']       # Use default if there is one registered
+
+            for c in clist[:]:
+                if c.callback(c, response):
+                    clist.remove(c)
+
+    def _writeline(self, line):
         """Write a line to the scanner.
 
-        Note that this is a blocking write but there should be no reason for it to block."""
+        Note that this is a blocking write but there should be no reason for it to block.
+
+        Args:
+            line (str): line to write to the scanner
+        """
+
         with self.iolock:
-            written = self._serscanner.write(line)
+            self._serscanner.write(line)
             # Send the '\r' newline
             self._serscanner.write(_NEWLINE)
             # And flush all output completely
             self._serscanner.flushOutput()
 
-    def command(self, cmdline):
-        """Send one command, queue the callback if supplied to the response queue"""
+    def send_command(self, cmdline):
+        """Send one command, queue the callback if supplied to the response queue
+
+        Args:
+            cmdline (Command): instance of Command containing command and callback
+        """
+
         if isinstance(cmdline, Command):
-            self.watchCommand(cmdline)
+            self.watch_command(cmdline)
             with self.iolock:
-                self.writeline(cmdline.cmdstring)
+                self._writeline(cmdline.cmdstring)
         else:
             raise ValueError('command takes a Command argument')

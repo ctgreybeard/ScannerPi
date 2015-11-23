@@ -1,0 +1,6 @@
+#!/usr/bin/env zsh
+
+pylint --rcfile pylint.rc $* scanmon
+mkdir -p _build/html
+rm _build/html/pylint_*.txt
+mv pylint_*.txt _build/html

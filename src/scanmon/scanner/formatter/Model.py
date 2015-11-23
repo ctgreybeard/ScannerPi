@@ -2,9 +2,9 @@
 
 Simply copy this file to "CMD.py" where 'CMD' is the response you want to decode.
 
-To customize the variable names ONLY simply supply a 'varlist' as shown below.
+To customize the variable names ONLY simply supply a 'VARLIST' as shown below.
 
-If you supply a decode then that will be called to decode the response, otherwise the varlist will
+If you supply a decode then that will be called to decode the response, otherwise the VARLIST will
 be used to decode the response. For most scanner responses a customized decode is not necessary.
 (STS is a notable exception because that response has a variable length.)
 
@@ -14,7 +14,7 @@ from scanmon.scanner.formatter import ScannerDecodeError, Response
 
 # This list is the names of the response values. Usually taken from the Complete Reference manual
 
-varlist = ('CMD', 'T1', 'T2', 'RSV1', 'RSV2')
+VARLIST = ('CMD', 'T1', 'T2', 'RSV1', 'RSV2')
 
 def display(response):
     """Format a string to use as a generic display for the response."""
@@ -30,5 +30,5 @@ def decode(response):
         response.parts -- A list built from the response split on commas"""
 
     for i, v in enumerate(response.parts):
-        var = varlist[i] if i < len(varlist) else 'VAR'
+        var = VARLIST[i] if i < len(VARLIST) else 'VAR'
         setattr(response, var, v)
