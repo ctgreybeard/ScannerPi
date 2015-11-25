@@ -2,5 +2,6 @@
 
 pylint --rcfile pylint.rc $* scanmon
 mkdir -p _build/html
-rm _build/html/pylint_*.txt
+rm -f _build/html/pylint_*.txt
 mv pylint_*.txt _build/html
+cp -p pylint.html _build/html
