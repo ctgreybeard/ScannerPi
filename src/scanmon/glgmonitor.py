@@ -80,7 +80,7 @@ class Titler(threading.Thread):
 
     def __init__(self):
         super().__init__()
-        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
+        self.__logger = logging.getLogger(__name__)
         requests_log = logging.getLogger("requests")
         requests_log.setLevel(logging.WARNING)
         requests_log.propagate = True
@@ -98,10 +98,10 @@ class Titler(threading.Thread):
 
         self.__logger = logging.getLogger(__name__)
         self._running = True
-        self.__logger.setLevel(logging.INFO)    # Keep the info logging until we get started
+        #self.__logger.setLevel(logging.INFO)    # Keep the info logging until we get started
         self.__logger.info(type(self).__name__+': Running')
         requests_log = logging.getLogger("requests.packages.urllib3")
-        requests_log.setLevel(logging.ERROR)    # Turn off INFO for now
+        #requests_log.setLevel(logging.ERROR)    # Turn off INFO for now
 
         while self._running:
             try:
@@ -178,7 +178,7 @@ class GLGMonitor(ReceivingState):
         """Initialize the instance"""
         super().__init__()
 # Set up logging
-        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
+        self.__logger = logging.getLogger(__name__)
         self.__logger.info(type(self).__name__+': Initializing')
         self.lastid = ''
         self.lastactive = 1.0
@@ -205,7 +205,7 @@ class GLGMonitor(ReceivingState):
         self.title_updater = Titler()
         self.title_updater.start()
         self.title_updater.put(GLGMonitor._DEFTITLE)     # Default idle title
-        self.__logger.setLevel(logging.ERROR)    # Keep the info logging until we get started
+        #self.__logger.setLevel(logging.ERROR)    # Keep the info logging until we get started
 
         # Set some instance variables that we need later
         self.monwin = monwin
@@ -228,6 +228,7 @@ class GLGMonitor(ReceivingState):
         # Set up the idle Text widget
         self.idle_widget = Text(('green', '\u2026Idle\u2026'))
         self.current_widget = None
+        self.scroll_win()
 
     def __initdb__(self, database):
         """Initialize the database for storing Receptions and tracking lastseen."""
@@ -286,7 +287,7 @@ class GLGMonitor(ReceivingState):
         curs = self.dbconn.execute('SELECT "LastTime" FROM "LastSeen" '
                                    'WHERE "System" == :system '
                                    'AND "Group" == :group '
-                                   'AND "Channel" == :channel', self.reception.__dict__)
+                                   'AND "Channel" == :channel', reception.__dict__)
 
         row = curs.fetchone()
         if row:
@@ -298,8 +299,8 @@ class GLGMonitor(ReceivingState):
             dbupdate = """INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
                 VALUES (:system, :group, :channel, :starttime)"""
 
-        self.dbconn.execute(dbupdate, self.reception.__dict__)
-        self.write_win()
+        self.dbconn.execute(dbupdate, reception.__dict__)
+        self.write_win(reception)
         return reception
 
     def accumulate_time(self):
@@ -317,7 +318,7 @@ class GLGMonitor(ReceivingState):
 
         if self.reception.last_active_state or samesystem:
             self.reception.duration = (self.receive_time - self.reception.starttime).seconds
-            self.write_win()
+            self.write_win(self.reception)
 
         self.reception.last_active_state = self.is_active
 
@@ -339,7 +340,7 @@ class GLGMonitor(ReceivingState):
                 dbwrite = """INSERT INTO "Reception"
                     ("Starttime", "Duration", "System", "Group", "Channel", "Frequency_TGID", "CTCSS_DCS",
                      "Modulation", "Attenuation", "SystemTag", "ChannelTag", "P25NAC") VALUES
-                    (:starttime, :Duration, :system, :group, :channel, :frequency_tgid, :ctcss_dcs,
+                    (:starttime, :duration, :system, :group, :channel, :frequency_tgid, :ctcss_dcs,
                      :modulation, :attenuation, :system_tag, :channel_tag, :p25nac)"""
                 self.dbconn.execute(dbwrite, self.reception.__dict__)
             except sqlite3.Error:
@@ -378,31 +379,31 @@ class GLGMonitor(ReceivingState):
 
         self.current_widget = WidgetPlaceholder(widget)
 
-        self.monwin.putline(self.current_widget)
+        self.monwin.putline('glg', self.current_widget)
 
-    def write_win(self):
+    def write_win(self, reception):
         """Write the current reception info to the window
         """
 
-        self.__logger.debug("system: %s", self.reception.sys_id)
+        self.__logger.debug("system: %s", reception.sys_id)
 
-        if not self.reception.dur_widget:
+        if not reception.dur_widget:
             # Compute the static information string once and cache it
-            self.reception.dur_widget = Text(str(self.reception.duration))
+            reception.dur_widget = Text(str(reception.duration))
 
             # Compute the frequency or 'NaN'
             with decimal.localcontext() as lctx:
                 lctx.traps[decimal.InvalidOperation] = False
-                frq = decimal.Decimal(self.reception.frequency_tgid)
+                frq = decimal.Decimal(reception.frequency_tgid)
 
             # Compute the 'lastseen' display value (HH:MM:SS)
-            if self.reception.lastseen:
-                delta = self.reception.starttime - self.reception.lastseen
+            if reception.lastseen:
+                delta = reception.starttime - reception.lastseen
                 lastseen = str(timedelta(delta.days, delta.seconds, 0))
             else:
                 lastseen = '*Forever'
 
-            self.reception.infostring = (
+            reception.infostring = (
                 '{time:s}: '
                 'Sys={sys:.<16s}|'
                 'Grp={grp:.<16s}|'
@@ -410,25 +411,25 @@ class GLGMonitor(ReceivingState):
                 'Freq={frq:#9.4f}|'
                 'C/D={ctc:>3s} '
                 'last={last:>8s}|'
-                'dur=').format(time=self.reception.starttime.strftime(GLGMonitor._TIMEFMT),
-                               sys=self.reception.system,
-                               grp=self.reception.group,
-                               chn=self.reception.channel,
-                               frq=frq,
-                               ctc=self.reception.ctcss_dcs,
+                'dur=').format(time=reception.starttime.strftime(GLGMonitor._TIMEFMT),
+                               sys=reception.system,
+                               grp=reception.group,
+                               chn=reception.channel,
+                               frq=float(frq),
+                               ctc=reception.ctcss_dcs,
                                last=lastseen)
 
             self.title_updater.put("{sys}|{grp}|{chan}".format(
-                sys=self.reception.system,
-                grp=self.reception.group,
-                chan=self.reception.channel))
+                sys=reception.system,
+                grp=reception.group,
+                chan=reception.channel))
 
             self.current_widget.original_widget = Columns(
-                [('pack', Text(self.reception.infostring)),
-                 Padding(self.reception.dur_widget)])
+                [('pack', Text(reception.infostring)),
+                 Padding(reception.dur_widget)])
 
         else:   # Update the existing duration
-            self.reception.dur_widget.set_text(str(self.reception.duration))
+            reception.dur_widget.set_text(str(self.reception.duration))
 
     def parse_response(self, glgresp):
         """Accept a scanner.formatter.Response object, decode it, set GLGMonitor values.
@@ -440,6 +441,8 @@ class GLGMonitor(ReceivingState):
         assert isinstance(glgresp, Response)
         assert glgresp.CMD == 'GLG'
 
+        self.__logger.debug('Parsing Response(%s)', glgresp.display(glgresp))
+
         self.receive_time = glgresp.TIME
         self.system_name = glgresp.NAME1
         self.group_name = glgresp.NAME2
@@ -449,15 +452,14 @@ class GLGMonitor(ReceivingState):
         self.modulation = glgresp.MOD
         self.attenuation = glgresp.ATT == '1'
 
-        try:
+        if glgresp.SYS_TAG and glgresp.SYS_TAG != 'NONE':
             self.system_tag = int(glgresp.SYS_TAG)
-        except ValueError:
+        else:
             self.system_tag = GLGMonitor.TAGNONE
 
-        try:
+        if glgresp.CHAN_TAG and glgresp.CHAN_TAG != 'NONE':
             self.channel_tag = int(glgresp.CHAN_TAG)
-
-        except ValueError:
+        else:
             self.channel_tag = GLGMonitor.TAGNONE
 
         self.p25nac = glgresp.P25NAC
@@ -534,7 +536,7 @@ class GLGMonitor(ReceivingState):
 
         del mainloop, user_data
 
-        self.monwin.scanner.send_command(Command('GLG'), callback=self.process)
+        self.monwin.scanner.send_command(Command('GLG', callback=self.process))
         self.send_count += 1
 
     def start(self):

@@ -23,4 +23,4 @@ def display(response):
                 'SQL={SQL}, '
                 'MUT={MUT}').format_map(response.__dict__)
     except KeyError:
-        return '[' + response.response + ']'
+        return '*[' + response.response + ']*'

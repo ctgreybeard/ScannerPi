@@ -113,7 +113,7 @@ class Scanmon(Monwin):
         """
 
         # Establish logging
-        self.__logger = logging.getLogger()
+        self.__logger = logging.getLogger(__name__)
         self.__logger.setLevel(LINFO)
         lfh = logging.FileHandler('scanmon.log')
         lfmt = logging.Formatter(fmt=Scanmon._LOGFORMAT, style='{')
@@ -163,7 +163,7 @@ class Scanmon(Monwin):
         """
 
         del command
-        self.putline('resp', 'R({}): {}'.format(response.CMD, response.display()))
+        self.putline('resp', 'R({}): {}'.format(response.CMD, response.display(response)))
         return False
 
     def cmd_mute(self, cmd, args):
@@ -206,12 +206,14 @@ class Scanmon(Monwin):
 
         del cmd # unused
 
-        if len(args) > 1:
+        if len(args) > 0:
             vol = ','
             if args == 'mute':
                 vol += '0'
             else:
                 vol += args
+        else:
+            vol = ''
 
         vol_cmd = Command('VOL' + vol)
         self.scanner.send_command(vol_cmd)
@@ -283,16 +285,16 @@ class Scanmon(Monwin):
         else:
             self.message("Unknown command: {}".format(inputstr))
 
-    def set_disp(self, _, resp):
+    def set_disp(self, cmd, resp):
         """Set version in main window
 
         Args:
-            cmd (Command): scanner command (unused)
+            cmd (Command): scanner command
             resp (Response): scanner response
         """
 
-        self.__logger.info("Setting response: %s", resp.PARTS[1])
-        resp.user_data(resp.PARTS[1])
+        self.__logger.info("Setting response: %s", resp.parts[1])
+        cmd.userdata(resp.parts[1])
 
     def run(self):
         """Initialize the window, initialize and start the threads
@@ -313,5 +315,4 @@ class Scanmon(Monwin):
     def close(self):
         """Close the scanner and the main window."""
         self.scanner.close()
-        super().close()
 

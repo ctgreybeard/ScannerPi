@@ -28,7 +28,7 @@ from .formatter import Response
 # Internal constants
 _ENCERRORS = 'ques'
 _ENCODING = 'ascii'
-_NEWLINE = '\r'
+_NEWLINE = b'\r'
 _TIMEOUT = 0.1
 _BAUDRATE = 115200
 _DEVS = ("/dev/ttyUSB0", "/dev/ttyUSB1")
@@ -164,8 +164,20 @@ class Command(object):
         return self._cmd
 
     def __repr__(self):
-        print("Command({}, callback={}, userdata={}".
-              format(self._cmdstring, self._callback, self._userdata))
+        return "Command({!r}, callback={!r}, userdata={!r}". \
+            format(self._cmdstring, self._callback, self._userdata)
+
+    def __hash__(self):
+        """__hash__ required for set operations
+        """
+
+        return hash(self._cmd) ^ hash(self._cmdstring) ^ hash(self._callback) ^ hash(self._userdata)
+
+    def __eq__(self, other):
+        """__eq__ required for set operations
+        """
+
+        return self.__hash__() == other.__hash__()
 
 class Scanner(object):
     """
@@ -208,6 +220,8 @@ class Scanner(object):
             self.__logger.critical('scanner: "%s" not found or not suitable', devs)
             raise IOError('"{}" not found or not suitable'.format(devs))
 
+        self.__logger.info("Using: %s", self.device)
+
         try:
             self._serscanner = serial.Serial(port=self.device, baudrate=_BAUDRATE, timeout=_TIMEOUT)
         except serial.SerialException:
@@ -219,7 +233,7 @@ class Scanner(object):
         self._serscanner.flushOutput()
 
         self._response_queue = ResponseQueue()
-        self._read_buffer = ''
+        self._read_buffer = b''
 
     @property
     def fileno(self):
@@ -241,7 +255,10 @@ class Scanner(object):
 
         if isinstance(command, Command):
             if command.callback is not None:
-                self._response_queue[command.cmd].add(command)
+                self.__logger.debug("Watching: %r", command)
+                clist = self._response_queue[command.cmd]   # Get existing or empty set
+                clist.add(command)
+                self._response_queue[command.cmd] = clist
         else:
             raise ValueError('watch_command requires a Command instance')
 
@@ -261,12 +278,12 @@ class Scanner(object):
 
         while self._serscanner.inWaiting() > 0:
             self._read_buffer += self._serscanner.read(self._serscanner.inWaiting())
-            self.__logger.debug('Scanner sent: ' + repr(self._read_buffer))
+            self.__logger.debug('Scanner sent: %r', self._read_buffer)
 
-        while b'\r' in self._read_buffer:
+        while _NEWLINE in self._read_buffer:
             (read_line, _, self._read_buffer) = self._read_buffer.partition(b'\r')
-            read_line = read_line.decode(errors='ignore')
-            self.__logger.debug('Read scanner: ' + repr(read_line))
+            read_line = read_line.decode(encoding='utf-8', errors='ignore')
+            self.__logger.debug('Read scanner: %r', read_line)
             response = Response(read_line)
             clist = self._response_queue[response.CMD]
 
@@ -274,7 +291,9 @@ class Scanner(object):
                 clist = self._response_queue['*']       # Use default if there is one registered
 
             for entry in clist.copy():
+                self.__logger.debug("Callback: %r", entry)
                 if entry.callback(entry, response):
+                    self.__logger.debug("Removing callback: %r", entry)
                     clist.remove(entry)
 
     def _writeline(self, line):
@@ -286,8 +305,9 @@ class Scanner(object):
             line (str): line to write to the scanner
         """
 
+        self.__logger.debug("Sending to scanner: %s", line)
         with self.iolock:
-            self._serscanner.write(line)
+            self._serscanner.write(bytes(line, 'UTF-8', 'ignore'))
             # Send the '\r' newline
             self._serscanner.write(_NEWLINE)
             # And flush all output completely

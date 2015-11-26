@@ -22,9 +22,9 @@ def gendecode(response):
 
     for i, val in enumerate(response.parts):
         var = response.VARLIST[i] if i < len(response.VARLIST) else 'VAR'
-        if hasattr(response, var):
+        if hasattr(response, var) and getattr(response, var) is not None:
             incr = 1
-            while hasattr(response, var + str(incr)):
+            while getattr(response, var + str(incr)) is not None:
                 incr += 1
             var = var + str(incr)
 
@@ -94,21 +94,21 @@ class Response(object):
 
         """
 
+        self.__logger = logging.getLogger(__name__)
         # Ensure that we have values for the necessary attributes
         self.CMD = '?'
-        self.response = ''
+        self.response = response
         self.parts = tuple()
         self.TIME = DateTime.now()
         self.display = gendisplay
         self.VARLIST = ('CMD',)     # Default variable list
 
         if response:
-        # Something is there, look further
-            self.response = response.rstrip('\r')
+            # Something is there, look further
             self.parts = self.response.split(',')
 
             if len(self.parts) < 2:     # Not exactly sure what this is but it's not good
-                raise ScannerDecodeError("Invalid response ({}) from scanner".format(self.response))
+                raise ScannerDecodeError("Invalid response ({!r}) from scanner".format(self.response))
 
             self.CMD = self.parts[0].upper()
 
@@ -146,6 +146,8 @@ class Response(object):
             self.CMD = ''
             self.status = Response.DECODEERROR
 
+        self.__logger.debug("New Response: %r", self)
+
     def __str__(self):
         """Return whatever was set during initialization."""
         return self.display(self)
@@ -158,4 +160,10 @@ class Response(object):
         if name == name.upper():    # All uppercase?
             return None
 
-        super().__getattr__(name)
+        raise AttributeError("{} 'Response' object has no attribute '{}'".format(name))
+
+    def __repr__(self):
+        """Debugging representation
+        """
+
+        return "Response(CMD={!s}, parts={!r}".format(self.CMD, self.parts)
