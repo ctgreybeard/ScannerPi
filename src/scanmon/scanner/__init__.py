@@ -2,6 +2,8 @@
 
 Classes:
 Scanner -- Defines data and control structures to control
+
+`Source <src/scanmon.scanner.html>`__
 """
 
 import serial
@@ -13,7 +15,11 @@ import termios
 import copy
 import codecs
 import logging
-from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
+from logging import DEBUG as LDEBUG, \
+                    INFO as LINFO, \
+                    WARNING as LWARNING, \
+                    ERROR as LERROR, \
+                    CRITICAL as LCRITICAL
 from threading import RLock
 from collections import UserDict
 
@@ -37,7 +43,7 @@ def _setio(ttyio):
     """Use termios to set the tty attributes the way we like. Only make changes if necessary."""
     attrs = termios.tcgetattr(ttyio)
     nattrs = copy.deepcopy(attrs)
-    iflag, oflag, cflag, lflag, ispeed, ospeed, cc = list(range(7))
+    iflag, oflag, cflag, lflag, ispeed, ospeed, schars = list(range(7))
     # Shamefully stolen from http://en.wikibooks.org/wiki/Serial_Programming/termios
     # Input flags - Turn off input processing
     # convert break to null byte, no CR to NL translation,
@@ -45,8 +51,14 @@ def _setio(ttyio):
     # no input parity check, don't strip high bit off,
     # no XON/XOFF software flow control
     #
-    nattrs[iflag] &= ~(termios.IGNBRK | termios.BRKINT | termios.ICRNL |
-        termios.INLCR | termios.PARMRK | termios.INPCK | termios.ISTRIP | termios.IXON)
+    nattrs[iflag] &= ~(termios.IGNBRK |
+                       termios.BRKINT |
+                       termios.ICRNL |
+                       termios.INLCR |
+                       termios.PARMRK |
+                       termios.INPCK |
+                       termios.ISTRIP |
+                       termios.IXON)
 
     # Output flags - Turn off output processing
     # no CR to NL translation, no NL to CR-NL translation,
@@ -55,13 +67,18 @@ def _setio(ttyio):
     # no local output processing
 
     nattrs[oflag] &= ~(termios.OCRNL | termios.ONLCR | termios.ONLRET |
-        termios.ONOCR | termios.OFILL | termios.OLCUC | termios.OPOST)
+                       termios.ONOCR | termios.OFILL | termios.OLCUC |
+                       termios.OPOST)
 
     # No line processing:
     # echo off, echo newline off, canonical mode off,
     # extended input processing off, signal chars off
 
-    attrs[lflag] &= ~(termios.ECHO | termios.ECHONL | termios.ICANON | termios.IEXTEN | termios.ISIG)
+    attrs[lflag] &= ~(termios.ECHO |
+                      termios.ECHONL |
+                      termios.ICANON |
+                      termios.IEXTEN |
+                      termios.ISIG)
 
     # Turn off character processing
     # clear current char size mask, no parity checking,
@@ -73,8 +90,8 @@ def _setio(ttyio):
     # One input byte is enough to return from read()
     # Inter-character timer off
 
-    nattrs[cc][termios.VMIN]  = 1
-    nattrs[cc][termios.VTIME] = 0
+    nattrs[schars][termios.VMIN] = 1
+    nattrs[schars][termios.VTIME] = 0
 
     # Communication speed (simple version, using the predefined
     # constants)
@@ -86,9 +103,16 @@ def _setio(ttyio):
         termios.tcsetattr(ttyio, termios.TCSAFLUSH, nattrs)
 
 class ResponseQueue(UserDict):
-    """Convenience method to supply default value"""
+    """Convenience method to supply default value
+    """
+
+    # pylint: disable=no-self-use
     def __missing__(self, key):
-        return []
+        """Return an empty set for any missing indexes
+        """
+
+        del key # Unused
+        return set()
 
 class Command(object):
     """
@@ -140,7 +164,8 @@ class Command(object):
         return self._cmd
 
     def __repr__(self):
-        print("Command({}, callback={}, userdata={}".format(self._cmdstring, self._callback, self._userdata))
+        print("Command({}, callback={}, userdata={}".
+              format(self._cmdstring, self._callback, self._userdata))
 
 class Scanner(object):
     """
@@ -153,7 +178,7 @@ class Scanner(object):
             if the device is not indicated.
     """
 
-    def __init__(self, device = None):
+    def __init__(self, device=None):
         """Initialize the class instance.
 
         Arguments:
@@ -174,9 +199,9 @@ class Scanner(object):
             devs = device
 
         self.device = None
-        for d in devs:
-            if stat.S_ISCHR(os.stat(d).st_mode) and os.access(d, os.W_OK):
-                self.device = d
+        for dev in devs:
+            if stat.S_ISCHR(os.stat(dev).st_mode) and os.access(dev, os.W_OK):
+                self.device = dev
                 break   # We found it
 
         if self.device is None:
@@ -207,14 +232,16 @@ class Scanner(object):
         Args:
             command: an instance of Command containing the command to monitor.
 
-        Note:
-            The callback included is called by read_scanner when this response is received.
-            When the callback returns ``True`` the watch is removed.
+        The callback included is called by read_scanner when this response is received.
+        When the callback returns ``True`` the watch is removed.
+
+        Only one instance of the callback can exist on the queue for a response. Subsequent
+        requests to add the same callback will not duplicate.
         """
 
         if isinstance(command, Command):
             if command.callback is not None:
-                self._response_queue[command.cmd] += (command, )
+                self._response_queue[command.cmd].add(command)
         else:
             raise ValueError('watch_command requires a Command instance')
 
@@ -233,8 +260,7 @@ class Scanner(object):
         self.__logger.debug('Reading')
 
         while self._serscanner.inWaiting() > 0:
-            readIt = self._serscanner.read(self._serscanner.inWaiting())
-            self._read_buffer += readIt
+            self._read_buffer += self._serscanner.read(self._serscanner.inWaiting())
             self.__logger.debug('Scanner sent: ' + repr(self._read_buffer))
 
         while b'\r' in self._read_buffer:
@@ -247,9 +273,9 @@ class Scanner(object):
             if len(clist) == 0:
                 clist = self._response_queue['*']       # Use default if there is one registered
 
-            for c in clist[:]:
-                if c.callback(c, response):
-                    clist.remove(c)
+            for entry in clist.copy():
+                if entry.callback(entry, response):
+                    clist.remove(entry)
 
     def _writeline(self, line):
         """Write a line to the scanner.

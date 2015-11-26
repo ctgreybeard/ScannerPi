@@ -1,4 +1,6 @@
 """Format decoders and encoder for Uniden BCDX96XT scanner
+
+`Source <src/scanmon.scanner.formatter.html>`__
 """
 
 import sys
@@ -9,12 +11,6 @@ from importlib import import_module
 class ScannerDecodeError(TypeError):
     """A generic error for decoders to use.
     """
-
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return repr(self.value)
 
 def gendecode(response):
     """Generalized decoder. Disassemble using the supplied or default VARLIST.
@@ -54,7 +50,8 @@ class Response(object):
         status: 'OK', 'NG', 'ERR', or 'DECODEERROR'
             OK: Response was 'OK' or response was decoded correctly
             NG: Response was 'NG' (Command invalid at this time)
-            ERR: Error response from scanner (Command format error / Value error, Framing error, Overrun error)
+            ERR: Error response from scanner (Command format error / Value error,
+            Framing error, Overrun error)
 
         response: The original response string (trailing '\\\\r' removed if any existed)
 
@@ -65,7 +62,8 @@ class Response(object):
 
             Names not set by the response return None.
 
-            Duplicate names (typically "RSV") are numbered from 1 after the first: RSV, RSV1, RSV2, etc.
+            Duplicate names (typically "RSV") are numbered from 1
+            after the first: RSV, RSV1, RSV2, etc.
 
     Raises:
        ScannerDecodeError: Scanner returned illegal response

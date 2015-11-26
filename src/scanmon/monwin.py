@@ -1,5 +1,7 @@
 """
 New Scanmon window based on urwid
+
+`Source <src/scanmon.monwin.html>`__
 """
 
 import logging
@@ -238,9 +240,10 @@ class Monwin(urwid.MainLoop):
         (screen_cols, screen_rows) = self.screen.get_cols_rows()
         glg_rows = screen_rows - (2 + 5 + 11)
 
-        self.msg.append(Text(('NORM',
-            'Screen has {:d} rows and {:d} columns'.format(screen_rows, screen_cols))))
-        self.msg.append(Text(('NORM', 'glg has {:d} rows'.format(glg_rows))))
+        self.msg.append(
+            Text(('NORM', 'Screen has {:d} rows and {:d} columns'.format(screen_rows, screen_cols))))
+        self.msg.append(
+            Text(('NORM', 'glg has {:d} rows'.format(glg_rows))))
 
     def _alarm_putline(self, main_loop, user_data):
         """Called via set_alarm_in when putline is called outside the main thread

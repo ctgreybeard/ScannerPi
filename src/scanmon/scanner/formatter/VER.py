@@ -1,4 +1,7 @@
-"""VER command response"""
+"""VER command response
+
+`Source <src/scanmon.scanner.formatter.VER.html>`__
+"""
 
 # Import our parent
 #from . import ScannerDecodeError, Response

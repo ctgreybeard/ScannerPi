@@ -1,4 +1,7 @@
-"""Handle the STS response"""
+"""Handle the STS response
+
+`Source <src/scanmon.scanner.formatter.STS.html>`__
+"""
 
 _VARLIST = ('CMD',
             'DSP_FORM',
@@ -25,8 +28,11 @@ def decode(response):
     """
 
     varlist = list(_VARLIST[:])   # Make a mutable copy
-    del varlist[1 + _DSP_FORM_INDEX + len(response.parts[_DSP_FORM_INDEX]) * 2: _SQL_INDX]  # Remove the unused Lines
-# Note that we can't use response.DSP_FORM because we haven't created it yet! We do that next.
+    del varlist[1 +
+                _DSP_FORM_INDEX +
+                len(response.parts[_DSP_FORM_INDEX]) * 2:
+                _SQL_INDX]  # Remove the unused Lines
+    # Note that we can't use response.DSP_FORM because we haven't created it yet! We do that next.
     for i, val in enumerate(response.parts):
         var = varlist[i] if i < len(varlist) else 'VAR'
         setattr(response, var, val)

@@ -1,4 +1,7 @@
-"""MDL command response"""
+"""MDL command response
+
+`Source <src/scanmon.scanner.formatter.MDL.html>`__
+"""
 
 #from scanmon.scanner.formatter import ScannerDecodeError, Response
 

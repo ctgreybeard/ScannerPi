@@ -1,4 +1,6 @@
 """GLGMonitor - Processing for GLG monitor
+
+`Source <src/scanmon.glgmonitor.html>`__
 """
 
 from datetime import timedelta
@@ -14,9 +16,14 @@ from urwid import WidgetPlaceholder, Text, Columns, Padding
 # Import our private modules
 from scanmon.receivingstate import ReceivingState
 from scanmon.scanner.formatter import Response
+from scanmon.scanner import Command
 
 class Reception:
-    """Holds information related to a single reception"""
+    """Holds information related to a single reception
+
+    Args:
+        glgresp (Response): Scanner response object
+    """
 
     def __init__(self, glgresp):
         self.starttime = glgresp.TIME
@@ -43,15 +50,17 @@ class Reception:
     def sys_id(self):
         """A simple identifier for the System-Group-Channel
         """
+
         return '-'.join((self.system, self.group, self.channel,))
 
     def __eq__(self, other):
         """Reception equality -- equal if System, Group, Channel, and Startime are equal
         """
+
         if isinstance(other, Reception):
             return self.sys_id == other.sys_id and self.starttime == other.starttime
         else:
-            raise ValueError
+            raise ValueError("Cannot equate Reception to something else.")
 
 class Titler(threading.Thread):
     """Reads from the _title_queue and updates the Icecast title
@@ -62,6 +71,8 @@ class Titler(threading.Thread):
 
     _AUTH = ('admin', 'carroll')
     _URL = 'http://localhost:8000/admin/metadata'
+    # TODO(admin@greybeard.org): Parameterize these
+
     _TITLEPARAMS = {
         'mount': '/stream',
         'mode': 'updinfo',
@@ -70,8 +81,8 @@ class Titler(threading.Thread):
     def __init__(self):
         super().__init__()
         self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
-        requests_log = logging.getLogger("requests.packages.urllib3")
-        requests_log.setLevel(logging.INFO)
+        requests_log = logging.getLogger("requests")
+        requests_log.setLevel(logging.WARNING)
         requests_log.propagate = True
         self._requests_session = requests.Session()
         self._requests_session.auth = self._AUTH
@@ -85,7 +96,7 @@ class Titler(threading.Thread):
         """Set up logging the loop on the input queue. When a title is posted update Icecast2.
         """
 
-        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
+        self.__logger = logging.getLogger(__name__)
         self._running = True
         self.__logger.setLevel(logging.INFO)    # Keep the info logging until we get started
         self.__logger.info(type(self).__name__+': Running')
@@ -125,6 +136,7 @@ class Titler(threading.Thread):
         """
 
         self.__logger.debug("update_title: %s", title)
+
         try:
             result = self._requests_session.get(self._URL, params={'song': title})
             if result.status_code != requests.codes.ok:      # pylint: disable=no-member
@@ -174,12 +186,14 @@ class GLGMonitor(ReceivingState):
         self.reception = None
         self.state = GLGMonitor.IDLE
         self.idletime = GLGMonitor.IDLETIME
+
         if args and hasattr(args, 'timeout') and args.timeout is not None:
             self.__logger.info("Timeout override: %s", args.timeout)
             try:
                 self.idletime = float(args.timeout)
             except ValueError:
                 self.__logger.error("Invalid timeout argument: %s", args.timeout)
+
         if (args and
                 hasattr(args, 'database') and
                 args.database is not None and
@@ -187,6 +201,7 @@ class GLGMonitor(ReceivingState):
             self.__initdb__(args.database)
         else:
             self.__initdb__(':memory:')
+
         self.title_updater = Titler()
         self.title_updater.start()
         self.title_updater.put(GLGMonitor._DEFTITLE)     # Default idle title
@@ -194,6 +209,8 @@ class GLGMonitor(ReceivingState):
 
         # Set some instance variables that we need later
         self.monwin = monwin
+        self.running = False
+        self.send_count = 0
         self.attenuation = None
         self.channel_name = None
         self.channel_tag = None
@@ -240,38 +257,50 @@ class GLGMonitor(ReceivingState):
                  "Group" TEXT,
                  "Channel" TEXT,
                  "LastTime" timestamp)""")
-        except:
+        except sqlite3.Error:
             self.__logger.exception("Error initializing database")
             raise
+
         # Build the lastseen table from the database
         try:
             self.dbconn.execute("""INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
                 SELECT "System", "Group", "Channel", MAX("Starttime") FROM "Reception"
                     GROUP BY "System", "Group", "Channel" """)
-        except:
+        except sqlite3.Error:
             self.__logger.exception("Error populating lastseen table")
             raise
 
     def create_reception(self, glgresp):
-        """Create a Reception instance"""
+        """Create a Reception instance
+
+        Args:
+            glgresp (Response): Scanner response object
+
+        Returns:
+            Reception
+        """
+
         self.__logger.debug("new Reception-%s", self.sys_id)
         self.state = GLGMonitor.RECEIVING
-        self.reception = Reception(glgresp)
+        reception = Reception(glgresp)
         curs = self.dbconn.execute('SELECT "LastTime" FROM "LastSeen" '
                                    'WHERE "System" == :system '
                                    'AND "Group" == :group '
                                    'AND "Channel" == :channel', self.reception.__dict__)
+
         row = curs.fetchone()
         if row:
-            self.reception.lastseen = row['LastTime']
+            reception.lastseen = row['LastTime']
             dbupdate = """UPDATE LastSeen SET LastTime = :starttime
                 WHERE "System" = :system AND "Group" = :group AND "Channel" = :channel"""
         else:
-            self.reception.lastseen = None
+            reception.lastseen = None
             dbupdate = """INSERT INTO LastSeen ("System", "Group", "Channel", "LastTime")
                 VALUES (:system, :group, :channel, :starttime)"""
+
         self.dbconn.execute(dbupdate, self.reception.__dict__)
         self.write_win()
+        return reception
 
     def accumulate_time(self):
         """Accumulate time in the current reception, set state.
@@ -313,7 +342,7 @@ class GLGMonitor(ReceivingState):
                     (:starttime, :Duration, :system, :group, :channel, :frequency_tgid, :ctcss_dcs,
                      :modulation, :attenuation, :system_tag, :channel_tag, :p25nac)"""
                 self.dbconn.execute(dbwrite, self.reception.__dict__)
-            except:
+            except sqlite3.Error:
                 self.__logger.exception("Error writing Reception to database")
                 raise
         else:
@@ -323,7 +352,7 @@ class GLGMonitor(ReceivingState):
         self.title_updater.put(GLGMonitor._DEFTITLE)     # Default idle title
 
         if self.is_active:
-            self.create_reception(self.glgresp)
+            self.reception = self.create_reception(self.glgresp)
             self.state = GLGMonitor.RECEIVING
         else:
             self.reception = None
@@ -338,7 +367,8 @@ class GLGMonitor(ReceivingState):
         References:
             self.current_widget
 
-        Creates a new WidgetPlaceholder containing the supplied widget.
+        Creates a new WidgetPlaceholder containing the supplied widget or
+        idle_widget.
         """
 
         self.__logger.debug("")
@@ -389,9 +419,9 @@ class GLGMonitor(ReceivingState):
                                last=lastseen)
 
             self.title_updater.put("{sys}|{grp}|{chan}".format(
-                                   sys=self.reception.system,
-                                   grp=self.reception.group,
-                                   chan=self.reception.channel))
+                sys=self.reception.system,
+                grp=self.reception.group,
+                chan=self.reception.channel))
 
             self.current_widget.original_widget = Columns(
                 [('pack', Text(self.reception.infostring)),
@@ -402,6 +432,9 @@ class GLGMonitor(ReceivingState):
 
     def parse_response(self, glgresp):
         """Accept a scanner.formatter.Response object, decode it, set GLGMonitor values.
+
+        Args:
+            glgresp (Response): scanner Response object
         """
 
         assert isinstance(glgresp, Response)
@@ -449,14 +482,14 @@ class GLGMonitor(ReceivingState):
 
         if self.is_idle:
             if self.is_active:
-                self.create_reception(self.glgresp)
+                self.reception = self.create_reception(self.glgresp)
 
         elif self.is_receiving:
             self.accumulate_time()
 
         elif self.is_timeout:
             time_exceeded = (glgresp.TIME -
-                self.reception.last_active_time).total_seconds() > self.idletime
+                             self.reception.last_active_time).total_seconds() > self.idletime
 
             if time_exceeded:
                 self.__logger.debug("Timeout: %s", self.reception.sys_id)
@@ -470,5 +503,51 @@ class GLGMonitor(ReceivingState):
         else:
             raise RuntimeError("Invalid GLG monitor state: {}".format(self.state))
 
+        self.send_count -= 1
+
+        if self.send_count < 0:
+            self.__logger.warning("GLG Monitor send count less than zero: %d", self.send_count)
+            self.send_count = 0
+
+        if self.send_count == 0 and self.running:
+            self.delay_glg()
+
+        # Always return False, we watch all GLG responses
         return False
+
+    def delay_glg(self, delay=0.5):
+        """Set a delayed GLG command.
+
+        Args:
+            delay (float): Delay in seconds. Default 0.5.
+        """
+
+        self.monwin.set_alarm_in(delay, self.send_glg)
+
+    def send_glg(self, mainloop, user_data):
+        """Send a GLG command to the scanner with a callback.
+
+        Args:
+            mainloop (urwid.mainloop): The urwid mainloop instance (not used)
+            user_data (object): The user data set with the alarm (not used)
+        """
+
+        del mainloop, user_data
+
+        self.monwin.scanner.send_command(Command('GLG'), callback=self.process)
+        self.send_count += 1
+
+    def start(self):
+        """Start monitoring.
+        """
+
+        self.running = True
+        if self.send_count == 0:
+            self.send_glg(self.monwin, None)
+
+    def stop(self):
+        """Stop monitoring.
+        """
+
+        self.running = False
 

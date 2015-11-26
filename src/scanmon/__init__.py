@@ -1,5 +1,7 @@
 """
 Scanmon - Display and control a Uniden BCD996XT scanner.
+
+`Source <src/scanmon.html>`__
 """
 from collections import deque
 from logging \
@@ -20,6 +22,8 @@ import subprocess
 import sys
 import threading
 import time
+
+from urwid import ExitMainLoop
 
 # Our own definitions
 from scanmon.glgmonitor import GLGMonitor
@@ -108,7 +112,7 @@ class Scanmon(Monwin):
         """Initialize the instance.
         """
 
-# Establish logging
+        # Establish logging
         self.__logger = logging.getLogger()
         self.__logger.setLevel(LINFO)
         lfh = logging.FileHandler('scanmon.log')
@@ -116,16 +120,17 @@ class Scanmon(Monwin):
         lfh.setFormatter(lfmt)
         self.__logger.addHandler(lfh)
         self.__args = args
+
         if self.__args.debug:
             self.__logger.setLevel(LDEBUG)
         else:
             self.__logger.setLevel(LINFO)
         self.__logger.info("Scanmon initializing")
 
-# Initialize the mainloop
+        # Initialize the mainloop
         super().__init__()
 
-# Get the scanner started
+        # Get the scanner started
         self.scanner = Scanner(self.__args.scanner)
         self.scanner_handle = self.watch_file(self.scanner.fileno, self.scanner.read_scanner)
         self.scanner.watch_command(Command('*', callback=self.catch_all))
@@ -135,7 +140,7 @@ class Scanmon(Monwin):
         # Commands entered at the console
         self.q_cmdin = queue.Queue(maxsize=Scanmon._MAXSIZE)
 
-# Set up GLG monitoring
+        # Set up GLG monitoring
         self.glgmonitor = GLGMonitor(self, args=self.__args)
         self.scanner.watch_command(Command('GLG', callback=self.glgmonitor.process))
 
@@ -145,7 +150,7 @@ class Scanmon(Monwin):
         sqlite3.register_adapter(bool, Scanmon._adapt_bool)
         sqlite3.register_converter('boolean', Scanmon._convert_bool)
 
-# Initialization complete
+        # Initialization complete
         self.__logger.info("Scanmon initializing")
 
     def catch_all(self, command, response):
@@ -153,37 +158,77 @@ class Scanmon(Monwin):
         will be called.
 
         Args:
-            command (Command): The original command (not valid in this case)
+            command (Command): The original command (unused)
             response (Response): The formatted scanner response
         """
+
         del command
         self.putline('resp', 'R({}): {}'.format(response.CMD, response.display()))
         return False
 
-    def do_mute(self, command, cmd):
+    def cmd_mute(self, cmd, args):
         """Send a 'vol mute' command
+
+        Args:
+            cmd (str): The command entered (unused)
+            args (str): The command argument (unused)
         """
 
-        del command, cmd # unused
-        self.do_vol('vol mute', ['vol', 'mute'])
+        del cmd, args # unused
+        self.cmd_vol('vol', 'mute')
 
-    def do_vol(self, command, cmd):
+    def cmd_mon(self, _, args):
+        """Start or stop the GLG monitoring
+
+        Args:
+            cmd (str): The command entered (unused)
+            args (str): 'start', 'stop', or null
+        """
+
+        if len(args) > 0:
+            if args == 'start':
+                self.glgmonitor.start()
+            elif args == 'stop':
+                self.glgmonitor.stop()
+            else:
+                self.message("Unknown option: {}".format(args))
+        else:
+            startstop = 'Running' if self.glgmonitor.running else 'Stopped'
+            self.putline('resp', "Monitoring {}".format(startstop))
+
+    def cmd_vol(self, cmd, args):
         """Send the volume request to the scanner
 
-        .. TODO:: Needs to be rewritten to send scanner command
+        Args:
+            cmd (str): The command entered (unused)
+            args (str): The volume number (0-29) or 'mute'
         """
 
-        del command, cmd # unused
+        del cmd # unused
 
-    def do_cmd(self, command, cmd):
+        if len(args) > 1:
+            vol = ','
+            if args == 'mute':
+                vol += '0'
+            else:
+                vol += args
+
+        vol_cmd = Command('VOL' + vol)
+        self.scanner.send_command(vol_cmd)
+
+    def cmd_cmd(self, cmd, args):
         """Proccess a request to send a scanner command.
 
-        .. TODO:: REWRITE!
+        Args:
+            cmd (str): The command entered (unused)
+            args (str): The command to send to the scanner
         """
 
-        pass
+        del cmd # Unused
+        args = args.lstrip()
+        self.scanner.send_command(Command(args))
 
-    def do_autocmd(self, command, cmd):
+    def cmd_autocmd(self, cmd, args):
         """Display or set/reset the autocommand setting.
 
         Args:
@@ -191,12 +236,13 @@ class Scanmon(Monwin):
             cmd ([str]): the list [0] = 'autocmd', [1] = 'on', 'off', or None
         """
 
-        del command, cmd # unused
-        if len(cmd) > 1:
-            self.autocmd = cmd[1] == 'on'
+        del cmd # unused
+        if len(args) > 1:
+            self.autocmd = args == 'on'
+
         self.message("autocommand is {}".format('on' if self.autocmd else 'off'))
 
-    def do_quit(self, command, cmd):
+    def cmd_quit(self, cmd, args):
         """Process a quit command.
 
         Args:
@@ -204,32 +250,61 @@ class Scanmon(Monwin):
             cmd ([str]): the list [0] = 'quit', [1] = **ignored**
         """
 
-        del command, cmd # unused
+        del cmd, args # unused
         self.message('Quitting...')
         self.__logger.info('Quitting...')
         self.running = False
+        raise ExitMainLoop
 
     def dispatch_command(self, inputstr):
         """Process commands.
-
-        .. TODO:: REWRITE
 
         Args:
             inputstr (str): The user-entered command.
         """
 
         self.__logger.info('dispatch_command: Handling "%s"', inputstr)
-        command = inputstr.strip()
+        (cmd, _, args) = inputstr.partition(' ')
+        cmd_method = 'cmd_' + cmd.strip()
+        args = args.lstrip()
+
+        handler = getattr(self, cmd_method, None)
+
+        if handler:
+            self.putline('resp', "CMD: {}".format(inputstr))
+
+        elif self.autocmd:
+            handler = self.cmd_cmd
+            args = inputstr
+
+        if handler:
+            handler(cmd, args)
+
+        else:
+            self.message("Unknown command: {}".format(inputstr))
+
+    def set_disp(self, _, resp):
+        """Set version in main window
+
+        Args:
+            cmd (Command): scanner command (unused)
+            resp (Response): scanner response
+        """
+
+        self.__logger.info("Setting response: %s", resp.PARTS[1])
+        resp.user_data(resp.PARTS[1])
 
     def run(self):
         """Initialize the window, initialize and start the threads
         Read and process commands from the monitor window.
 
-        .. TODO:: WRITE
         """
-        pass
 
-# Build the queues, use an arbitrary 10 as the maxsize
+        if self.__args.monitor:
+            self.glgmonitor.start()
+
+        self.scanner.send_command(Command('VER', callback=self.set_disp, userdata=self.ver.set_text))
+        self.scanner.send_command(Command('MDL', callback=self.set_disp, userdata=self.mdl.set_text))
 
         self.running = True
         super().run()                   # Start the whole thing going

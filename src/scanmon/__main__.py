@@ -1,12 +1,18 @@
 """
 Scanmon __main__ routine. Runs the Scanmon system.
+
+`Source <src/scanmon.__main__.html>`__
 """
 
 import argparse
 from scanmon import Scanmon
 
+_COLORHELP = " text color index (0 to 63)"
+
 def main():
-# Options definition
+    """Set up parameter parsing and launch Scanmon
+    """
+
     parser = argparse.ArgumentParser(description="Monitor and control the scanner", prog="scanmon")
     parser.add_argument("-s", "--scanner",
                         required=False,
@@ -17,22 +23,26 @@ def main():
                         default=False,
                         action='store_true',
                         help="Debugging flag, default False")
-    COLORHELP = " text color index (0 to 63)"
+    parser.add_argument("-M", "--monitor",
+                        required=False,
+                        default=False,
+                        action='store_true',
+                        help="Auto start GLG monitor")
     parser.add_argument("--color-norm",
                         required=False,
-                        help="Normal" + COLORHELP,
+                        help="Normal" + _COLORHELP,
                         type=int)
     parser.add_argument("--color-alert",
                         required=False,
-                        help="Alert" + COLORHELP,
+                        help="Alert" + _COLORHELP,
                         type=int)
     parser.add_argument("--color-warn",
                         required=False,
-                        help="Warning" + COLORHELP,
+                        help="Warning" + _COLORHELP,
                         type=int)
     parser.add_argument("--color-green",
                         required=False,
-                        help="Green" + COLORHELP,
+                        help="Green" + _COLORHELP,
                         type=int)
     parser.add_argument("--database", "--db",
                         required=False,
@@ -45,10 +55,10 @@ def main():
                         help="Idle timeout for receptions")
     args = parser.parse_args()
 
-    SCANNER = Scanmon(args)
-    SCANNER.run()
+    scanner = Scanmon(args)
+    scanner.run()
 
-    SCANNER.close()
+    scanner.close()
 
 if __name__ == '__main__':
     main()

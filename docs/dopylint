@@ -2,6 +2,6 @@
 
 pylint --rcfile pylint.rc $* scanmon
 mkdir -p _build/html
-rm -f _build/html/pylint_*.txt
+(setopt nonomatch;rm -f _build/html/pylint_*.txt)
 mv pylint_*.txt _build/html
 cp -p pylint.html _build/html

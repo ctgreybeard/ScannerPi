@@ -1,4 +1,6 @@
 """Holds the state of the receiving stream.
+
+`Source <src/scanmon.receivingstate.html>`_
 """
 
 import logging
@@ -61,8 +63,10 @@ class ReceivingState:
         return "{0}({0}.{1})".format(self.__class__.__name__, self.__state)
 
 def _run_tests():
-    """Testing code"""
+    """Testing code
+    """
 
+    # pylint: disable=too-many-branches
     print("--State initialization and setting")
     mystate = ReceivingState()
     print("  Initial state is", mystate.state)
