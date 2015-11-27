@@ -52,7 +52,7 @@ class ReceivingState:
             raise ValueError('Invalid Receiving State: %s', newstate)
 
     def __init__(self, initialstate=None):
-        self.__logger = logging.getLogger(__name__)
+        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
         self.__state = '*INIT*'
         self.state = ReceivingState.IDLE if initialstate is None else initialstate
 

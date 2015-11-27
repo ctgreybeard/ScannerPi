@@ -53,7 +53,7 @@ class Monwin(urwid.MainLoop):
             """Initialize the CmdLine class.
             """
 
-            self.__logger = logging.getLogger(__name__)
+            self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
             self.cmd_queue = cmd_queue
             super().__init__(Edit(caption=('green', "Cmd> "), wrap='clip'))
 
@@ -92,7 +92,7 @@ class Monwin(urwid.MainLoop):
             """Initialize the ScrollWin.
             """
 
-            self.__logger = logging.getLogger(__name__)
+            self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
             self.scroller = ListBox(SimpleFocusListWalker([]))
             if title:
                 self.frame_title = Columns([('pack', Text('--')),
@@ -103,7 +103,7 @@ class Monwin(urwid.MainLoop):
             super().__init__(Frame(self.scroller, header=self.frame_title))
 
         def append(self, wid):
-            """Append a line to the indow contents.
+            """Append a line to the window contents.
 
             Args:
                 wid (str, Widget, or tuple): The line to append to the window contents.
@@ -193,12 +193,12 @@ class Monwin(urwid.MainLoop):
             if self.widget.focus_position != 'footer':  # readjust focus if needed
                 self.widget.focus_position = 'footer'
         else:
-            self.resp.append(Text(repr(key)))
+            self.__logger.info("Key: %r", key)
 
         return True
 
     def __init__(self):
-        self.__logger = logging.getLogger(__name__)
+        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
         self.mdl = Text('[checking...]')
         self.ver = Text('[checking...]')
         self.thread_id = threading.get_ident()
@@ -229,7 +229,7 @@ class Monwin(urwid.MainLoop):
             ('wintitle', 'yellow', 'default', 'bold'),
             ('green', 'dark green', 'default', 'bold'),
             ('NORM', 'light gray', 'default', 'default'),
-            ('NORMF', 'white', 'default', 'standout'),
+            ('NORMF', 'yellow', 'default', 'standout'),
             ('ALERT', 'light red', 'default', 'default'),
             ('ALERTF', 'standout,light red', 'default', 'standout'),
             ('WARN', 'light magenta', 'default', 'underline'),
@@ -396,7 +396,7 @@ if __name__ == '__main__':
             """A simple thread test
             """
 
-            dologger = logging.getLogger(__name__)
+            dologger = logging.getLogger(__name__).getChild(type(self).__name__)
             dologger.info('starting')
             loop_test_time = "I'm not done yet!"
             dologger.debug(loop_test_time)
@@ -412,7 +412,7 @@ if __name__ == '__main__':
 
         fmt = '%(asctime)s -%(levelname)s- *%(threadName)s* %%%(funcName)s%% %(message)s'
         logging.basicConfig(filename='Monwin.log', filemode='w', level=logging.DEBUG, format=fmt)
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__name__).getChild(type(self).__name__)
         now1 = time.time()
 
         monwin = Monwin()

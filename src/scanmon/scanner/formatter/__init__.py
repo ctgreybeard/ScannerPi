@@ -94,7 +94,7 @@ class Response(object):
 
         """
 
-        self.__logger = logging.getLogger(__name__)
+        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
         # Ensure that we have values for the necessary attributes
         self.CMD = '?'
         self.response = response
@@ -160,7 +160,7 @@ class Response(object):
         if name == name.upper():    # All uppercase?
             return None
 
-        raise AttributeError("{} 'Response' object has no attribute '{}'".format(name))
+        raise AttributeError("'Response' object has no attribute '{}'".format(name))
 
     def __repr__(self):
         """Debugging representation

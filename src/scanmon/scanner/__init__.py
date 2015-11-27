@@ -200,7 +200,7 @@ class Scanner(object):
         """
 
 # Initialize the logger
-        self.__logger = logging.getLogger(__name__)
+        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
         self.__logger.info("Initializing scanner")
         self.iolock = RLock()
         if device is None:

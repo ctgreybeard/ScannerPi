@@ -80,10 +80,9 @@ class Titler(threading.Thread):
 
     def __init__(self):
         super().__init__()
-        self.__logger = logging.getLogger(__name__)
-        requests_log = logging.getLogger("requests")
+        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
+        requests_log = logging.getLogger("requests.packages.urllib3")
         requests_log.setLevel(logging.WARNING)
-        requests_log.propagate = True
         self._requests_session = requests.Session()
         self._requests_session.auth = self._AUTH
         self._requests_session.params = self._TITLEPARAMS
@@ -96,12 +95,9 @@ class Titler(threading.Thread):
         """Set up logging the loop on the input queue. When a title is posted update Icecast2.
         """
 
-        self.__logger = logging.getLogger(__name__)
+        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
         self._running = True
-        #self.__logger.setLevel(logging.INFO)    # Keep the info logging until we get started
         self.__logger.info(type(self).__name__+': Running')
-        requests_log = logging.getLogger("requests.packages.urllib3")
-        #requests_log.setLevel(logging.ERROR)    # Turn off INFO for now
 
         while self._running:
             try:
@@ -178,7 +174,7 @@ class GLGMonitor(ReceivingState):
         """Initialize the instance"""
         super().__init__()
 # Set up logging
-        self.__logger = logging.getLogger(__name__)
+        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
         self.__logger.info(type(self).__name__+': Initializing')
         self.lastid = ''
         self.lastactive = 1.0

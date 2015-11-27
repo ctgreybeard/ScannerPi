@@ -39,7 +39,7 @@ class Scanmon(Monwin):
     """
 
 # Class constants
-    _LOGFORMAT = "{asctime} {module}.{funcName} -{levelname}- *{threadName}* {message}"
+    _LOGFORMAT = "{asctime} {name}.{funcName} -{levelname}- *{threadName}* {message}"
     _TIMEFMT = '%H:%M:%S'
     _GLGTIME = 0.5  # Half second
     _EPOCH = 3600 * 24 * 356    # A year of seconds
@@ -112,19 +112,21 @@ class Scanmon(Monwin):
         """Initialize the instance.
         """
 
+        self.__args = args
+
         # Establish logging
-        self.__logger = logging.getLogger(__name__)
-        self.__logger.setLevel(LINFO)
         lfh = logging.FileHandler('scanmon.log')
         lfmt = logging.Formatter(fmt=Scanmon._LOGFORMAT, style='{')
         lfh.setFormatter(lfmt)
-        self.__logger.addHandler(lfh)
-        self.__args = args
+        root_logger = logging.getLogger()
+        root_logger.addHandler(lfh)
 
         if self.__args.debug:
-            self.__logger.setLevel(LDEBUG)
+            root_logger.setLevel(LDEBUG)
         else:
-            self.__logger.setLevel(LINFO)
+            root_logger.setLevel(LINFO)
+
+        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
         self.__logger.info("Scanmon initializing")
 
         # Initialize the mainloop
@@ -228,6 +230,14 @@ class Scanmon(Monwin):
 
         del cmd # Unused
         args = args.lstrip()
+
+        # Split out the command and make it uppercase
+        (cmd, sep, rest) = args.partition(',')
+        cmd = cmd.upper()
+
+        # Put it back together
+        args = cmd + sep + rest
+
         self.scanner.send_command(Command(args))
 
     def cmd_autocmd(self, cmd, args):
