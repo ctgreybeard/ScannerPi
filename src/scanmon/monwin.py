@@ -1,328 +1,428 @@
-"""A curses window for scanmon
+"""
+New Scanmon window based on urwid
 
-Classes:
-Monwin -- the main class using curses
-Subwin -- an internal class for Monwin for the sub-windows
+`Source <src/scanmon.monwin.html>`__
 """
 
-import sys
-import curses
-import curses.ascii as ascii
-import curses.panel as panel
-import curses.textpad as textpad
 import logging
-from logging import DEBUG as LDEBUG, INFO as LINFO, WARNING as LWARNING, ERROR as LERROR, CRITICAL as LCRITICAL
+import urwid
+from urwid import \
+    AttrMap,\
+    Columns,\
+    Divider,\
+    Edit,\
+    Frame,\
+    ListBox,\
+    Padding,\
+    Pile,\
+    SimpleFocusListWalker,\
+    Text
+import time
+import threading
 
-NORM = 7
-ALERT = 15
-WARN = 15
-GREEN = 3
-COLORS = {"NORM":NORM, "ALERT":ALERT, "WARN":WARN, "GREEN":GREEN}
+def _do_nothing(main_loop, user_data):
+    """Does nothing useful except to waken the main loop to cause refreshes.
 
-class Monwin:
-    """Build and control the curses screen for Scanmon.
+    I believe this works around a bug in urwid. Rescedules itslef ever 0.5 seconds to
+    keep things alive.
 
-    Internal classes:
-    Subwin -- The individual sub-windows (msg, glg, resp, cmd, and alert)
+    Args:
+        main_loop (urwid.main_loop): Standard args for set_alarm method
+        user_data (object): Standard args for set_alarm method
+    """
 
-    Methods:
-    __init__ -- The usual.
-    putline -- Scroll the sub-window and write a new line at the bottom.
-    getline -- Read input from the command window.
-    alert -- Display a message in the message window. Wait for acknowledgement.
-    message -- Display a message in the message window."""
+    del user_data
+    main_loop.set_alarm_in(0.5, _do_nothing)
 
-    class Subwin:
-        """Build a subwindow or overlay window.
+class Monwin(urwid.MainLoop):
+    """Main class for the window.
 
-        Methods:
-        __init__ -- Initialization
-        putline -- Scroll the sub-window and write a new line at the bottom
-        getline -- Read input from the command window
-        hint -- Write text as a hint line within the top border allowance"""
+    Handles all display functions, command entry, monitors the scanner for input.
+    """
 
-        def __init__(
-                self,
-                master,
-                name,
-                height, width,
-                origin_y, origin_x,
-                colors,
-                overlay = False,
-                textinput = False,
-                borderleft = 1, borderright = 1, bordertop = 1, borderbottom = 1,
-                border = False,
-                hlinetop = False, hlinebottom = False):
-            """Initialize the Subwin class.
+    class CmdLine(urwid.WidgetWrap):
+        """The command line input area.
 
-            Positional arguments:
-            master -- The master window (usually stdscr)
-            name -- The name of the subwindow
-            origin_y, origin_x -- relative position within the master window
-            height, width -- height and width including border allowance
-            colors -- Dict of selected colors
+        Posts any command entered to the command queue when Enter is pressed.
 
-            Keyword arguments:
-            overlay -- Define subwindow as an overlay rather than subwindow (False)
-            textinput -- This is a text input window (False)
-            border{left,right,top,bottom} -- Setback allowance for borders (1)
-            border -- Draw a standard border within the allowance (False)
-            hline{top,bottom} -- Draw a horizontal line top or bottom with this character (False)"""
-
-# Set up logging
-            self.__logger = logging.getLogger().getChild(__name__)
-            self.__logger.info('subwin %s: Initializing', name)
-# Record the initial parameters
-            self.master = master
-            self.name = name
-            self.height = height
-            self.width = width
-            self.origin_y = origin_y
-            self.origin_x = origin_x
-            self.overlay = overlay
-            self.textinput = textinput
-            self.borderleft = borderleft
-            self.borderright = borderright
-            self.bordertop = bordertop
-            self.borderbottom = borderbottom
-            self.border = border
-            self.hlinetop = hlinetop
-            self.hlinebottom = hlinebottom
-            self.colors = colors
-            self.__logger.info(
-                "subwin %s: Initialized master=%s, " + \
-                "height=%s, width=%s, " + \
-                "origin_y=%s, origin_x=%s, " + \
-                "overlay=%s, " + \
-                "textinput=%s, " + \
-                "borders=(%s,%s,%s,%s), border=%s, " + \
-                "hlinetop=0x%x, hlinebottom=0x%x",
-                name, (master.getbegyx(), master.getmaxyx()),
-                height, width, origin_y, origin_x,
-                overlay, textinput,
-                borderleft, borderright, bordertop, borderbottom, border,
-                hlinetop, hlinebottom)
-
-            if not overlay:
-                if border:
-# Create a dummy "master" window to hold the border
-                    master = self.master.subwin(height, width, origin_y, origin_x)
-                    master.border()
-                    self.__logger.info(
-                        "subwin %s: non-overlay+border master at %s",
-                        self.name,
-                        (height, width, origin_y, origin_x))
-                    origin_x = 0
-                    origin_y = 0
-                    borderleft = 1
-                    borderright = 1
-                    bordertop = 1
-                    borderbottom = 1
-                    hlinetop = False
-                    hlinebottom = False
-
-                self.winheight = height - bordertop - borderbottom
-                self.winwidth = width - borderleft - borderright
-                self.winorigin_y = origin_y + bordertop
-                self.winorigin_x = origin_x + borderleft
-                self.window = master.subwin(
-                    height - bordertop - borderbottom,
-                    width - borderleft - borderright,
-                    origin_y + bordertop,
-                    origin_x + borderleft)
-                self.__logger.info(
-                    "subwin %s: subwindow at %s",
-                    self.name,
-                    (height - bordertop - borderbottom,
-                     width - borderleft - borderright,
-                     origin_y + bordertop, origin_x + borderleft))
-
-                self.window.leaveok(0)
-                self.bottomline = height - bordertop - borderbottom - 1
-                assert self.bottomline >= 0, "%s: bottomline(%s) less than 0".format(self.name, self.bottomline)
-                self.firstcol = 0
-                self.msgwidth = width - borderleft - borderright
-                if self.bottomline > 0:
-                    self.window.scrollok(True)
-                    try:
-                        self.window.setscrreg(0, self.bottomline)
-                    except:
-                        self.__logger.error("subwin %s: setscrreg(0, %s) failed.", self.name, self.bottomline)
-
-                if hlinetop and bordertop:
-                    master.hline(origin_y, borderleft, hlinetop, self.msgwidth)
-                    self.__logger.info("subwin %s: hlinetop at %s,%s", self.name, origin_y, borderleft)
-
-                if hlinebottom and borderbottom:
-                    bline = origin_y + height - 1
-                    master.hline(bline, borderleft, hlinebottom, self.msgwidth)
-                    self.__logger.info("subwin %s: hlinebottom at %s,%s", self.name, origin_y, borderleft)
-
-            else:
-                raise NotImplementedError("Overlays still need to be done")
-
-            if textinput:
-                self.textbox = curses.textpad.Textbox(self.window)
-                self.__logger.info("subwin %s: textbox set", self.name)
-            else:
-                self.textbox = None
-
-        def putline(self, message, color = "NORM", scroll = True):
-            """Scroll the window and write the message on the bottom line.
-
-            Positional parameters:
-            message -- The message (a string)
-            color   -- The color of the message("NORM", "ALERT", "WARN", "GREEN")
-            scroll  -- Scroll window before writing
-            """
-            self.__logger.debug("subwin %s: writing \"%s\"", self.name, message)
-            cy, cx = curses.getsyx()
-            target = self.window
-            if scroll:
-                target.scroll()
-            try:
-                target.addnstr(
-                    self.bottomline,
-                    self.firstcol,
-                    message,
-                    self.winwidth,
-                    curses.color_pair(self.colors[color]))
-            except:
-                self.__logger.error(
-                    "subwin %s: addnstr(%s, %s, %s, %s, %s) failed",
-                    self.name,
-                    self.bottomline,
-                    self.firstcol,
-                    message,
-                    self.winwidth,
-                    curses.color_pair(self.colors[color]))
-                sys.exit(1)
-            target.noutrefresh()
-            curses.setsyx(cy, cx)
-            curses.doupdate()
-
-    def __init__(self, stdscr, args):
-        """Initialize the master screen (stdscr)
-
-        Positional parameters:
-        stdscr -- The master curses screen
-
-        Initializes the master screen with a border and builds the subwindows: msg, glg, resp, cmd, and alert
+        Args:
+            cmd_queue (Queue): the queue into which to put the entered comands.
         """
 
-# Set up logging
-        self.__logger = logging.getLogger().getChild(__name__)
-        self.__logger.info('monwin: Initializing')
-        self._mainlines, self._maincols = stdscr.getmaxyx()
-        self.__logger.info("monwin: Screen is %s lines, %s cols", self._mainlines, self._maincols)
-# Define window sizes lines and columns include border characters
-        MSGLINES = 4
-        RESPLINES = 10
-        CMDLINES = 2
-# GLG gets the rest minus the borders
-        GLGLINES = self._mainlines - MSGLINES - RESPLINES - CMDLINES
-# All subwindows (except alert) have the same width
-        WINCOLS = self._maincols
+        def __init__(self, cmd_queue):
+            """Initialize the CmdLine class.
+            """
 
-        # Clear screen
-        self._stdscr = stdscr
-        stdscr.clear()
-        stdscr.leaveok(0)
+            self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
+            self.cmd_queue = cmd_queue
+            super().__init__(Edit(caption=('green', "Cmd> "), wrap='clip'))
 
-        self.main_panel = panel.new_panel(stdscr)
-# Set the color pairs
-        pn = 1
-        for bg in range(8):
-            for fg in range(8):
-                if not ( fg == curses.COLOR_WHITE and bg == curses.COLOR_BLACK ):
-                    curses.init_pair(pn, fg, bg)
-                    pn += 1
+        def keypress(self, size, key):
+            """Watch for the Enter key and post commands to the command queue.
 
-        self.colors = dict(COLORS)
-        if args.color_norm is not None: self.colors["NORM"] = args.color_norm
-        if args.color_alert is not None: self.colors["ALERT"] = args.color_alert
-        if args.color_warn is not None: self.colors["WARN"] = args.color_warn
-        if args.color_green is not None: self.colors["GREEN"] = args.color_green
-        stdscr.attrset(curses.color_pair(self.colors["NORM"]))
-        stdscr.border()
+            Args:
+                size (widget size): See *Widget.render()* for details
+                key (str): a single keystrove value
 
-        self.msgwin = Monwin.Subwin(
-            stdscr,
-            "msg",
-            MSGLINES,
-            WINCOLS,
-            0,
-            0,
-            self.colors,
-            hlinebottom = curses.ACS_HLINE)
-        self.glgwin = Monwin.Subwin(
-            stdscr, "glg",
-            GLGLINES,
-            WINCOLS,
-            MSGLINES,
-            0,
-            self.colors,
-            hlinebottom = curses.ACS_HLINE,
-            bordertop = 0)
-        self.respwin = Monwin.Subwin(
-            stdscr,
-            "resp",
-            RESPLINES,
-            WINCOLS,
-            MSGLINES + GLGLINES,
-            0,
-            self.colors,
-            hlinebottom = curses.ACS_HLINE,
-            bordertop = 0)
-        self.cmdwin = Monwin.Subwin(
-            stdscr,
-            "cmd",
-            CMDLINES,
-            WINCOLS,
-            MSGLINES + GLGLINES + RESPLINES,
-            0,
-            self.colors,
-            textinput = True,
-            bordertop = 0)
-        self.homepos = (self._mainlines - 2, 1)
-        stdscr.move(*self.homepos)
+            Returns:
+                *None* if the key was handled or *key* otherwise
+            """
 
-        self.windows = {"msg":self.msgwin, "glg": self.glgwin, "resp": self.respwin, "cmd": self.cmdwin}
-        stdscr.refresh()
+            keyret = self._w.keypress(size, key)
+            if keyret == 'enter':
+                cmd = self._w.edit_text
+                self.__logger.debug('keypress: Command: "%s"', cmd)
+                self._w.set_edit_text('')
+                self.cmd_queue(cmd)
+                keyret = None
 
-    def putline(self, window, message, color = "NORM"):
+            return keyret
+
+    class ScrollWin(urwid.WidgetWrap):
+        """
+        Main scrolling windows within the program window.
+
+        These handle auto scrolling and mouse scrolling.
+
+        Args:
+            title (str): Optional title string for the window header.
+        """
+
+        def __init__(self, title=None):
+            """Initialize the ScrollWin.
+            """
+
+            self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
+            self.scroller = ListBox(SimpleFocusListWalker([]))
+            if title:
+                self.frame_title = Columns([('pack', Text('--')),
+                                            ('pack', Text(('wintitle', title))),
+                                            Divider('-')])
+            else:
+                self.frame_title = None
+            super().__init__(Frame(self.scroller, header=self.frame_title))
+
+        def append(self, wid):
+            """Append a line to the window contents.
+
+            Args:
+                wid (str, Widget, or tuple): The line to append to the window contents.
+                    May be a plain string, an urwid Widget, or a tuple with an attributed string.
+            """
+
+            try:
+                focus_now = self.scroller.focus_position
+            except IndexError:
+                focus_now = -1
+            bottom = focus_now == len(self.scroller.body) - 1  # Bottom widget in focus?
+            self.scroller.body.append(AttrMap(wid, None,        # pylint: disable=no-member
+                                              {'NORM': 'NORMF',
+                                               'WARN': 'WARNF',
+                                               'ALERT': 'ALERTF',
+                                               'default': 'NORMF'}))
+            if bottom:
+                self.__logger.debug('scrolling')
+                self.scroller.set_focus(focus_now + 1, coming_from='above')
+            else:
+                self.__logger.debug('skipping scrolling')
+
+        def mouse_event(self, size, event, button, col, row, focus):
+            """Handle mouse events that happen within the window.
+
+            Args:
+                size (widget size): See *Widget.render()* for details
+
+                event (str): Values such as :code:`'mouse press'`
+
+                button (int): 1 through 5 for press events,
+                    often 0 for release events (which button was released is often not known)
+
+                col (int): Column of the event, 0 is the left edge of this widget
+
+                row (int): Row of the event, 0 it the top row of this widget
+
+                focus (bool): Set to True if this widget or one of its children is in focus
+            """
+
+            focus_dir = None
+
+            if button == 4.0:   # scroll wheel down
+                focus_dir = -1
+                from_dir = 'below'
+                self.__logger.debug('Scroll wheel down')
+            elif button == 5.0: # scroll wheel up
+                focus_dir = 1
+                from_dir = 'above'
+                self.__logger.debug('Scroll wheel up')
+
+            if focus_dir is not None:
+                handled = True
+                try:
+                    newpos = self.scroller.focus_position + focus_dir
+                    if newpos >= 0 and newpos < len(self.scroller.body):
+                        self.scroller.change_focus(size, newpos, coming_from=from_dir)
+                        self.__logger.debug('newpos=%d', newpos)
+                except IndexError:
+                    msg = 'OUCH! size={}, event={}, button={}, col={}, row={}, focus={}, dir={}'.format(size, event, button, col, row, focus, focus_dir)
+                    self.__logger.exception(msg)
+                    self.append(Text(msg))
+            else:
+                handled = self._w.mouse_event(size, event, button, col, row, focus)
+
+            return handled
+
+    def show_or_exit(self, key):
+        """Responds to unhandled key presses.
+
+        Responds to keys as follows:
+
+        * :code:`'q'` or :code:`'Q'`: Exits the system via :code:`raise urwid.ExitMainLoop()`
+        * :code:`'enter'`: Reset focus to the command input area
+        * Anything else: Display a message
+
+        Args:
+            key (str): The unhandled key value
+
+        Returns:
+            True in all cases except when the exception is raised.
+        """
+
+        if key in ('q', 'Q'):
+            raise urwid.ExitMainLoop()
+        elif key == 'enter':
+            if self.widget.focus_position != 'footer':  # readjust focus if needed
+                self.widget.focus_position = 'footer'
+        else:
+            self.__logger.info("Key: %r", key)
+
+        return True
+
+    def __init__(self):
+        self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
+        self.mdl = Text('[checking...]')
+        self.ver = Text('[checking...]')
+        self.thread_id = threading.get_ident()
+        header = Columns([
+            ('weight', 60, Divider('-')),
+            ('weight', 30, Padding(AttrMap(self.mdl, 'wintitle'),
+                                   min_width=10, align='left')),
+            ('weight', 20, Divider('=')),
+            ('weight', 30, Padding(AttrMap(self.ver, 'wintitle'),
+                                   min_width=10, align='right', width='pack')),
+            ('weight', 60, Divider('-'))
+            ])
+
+        footer = Monwin.CmdLine(self.dispatch_command)
+
+        self.msg = Monwin.ScrollWin('Messages')
+        self.glg = Monwin.ScrollWin('Channel Monitor')
+        self.resp = Monwin.ScrollWin('Command Response')
+        self.windows = {'msg': self.msg, 'glg': self.glg, 'resp': self.resp}
+
+        body = Pile([
+            ('weight', 5, self.msg),
+            ('weight', 33, self.glg),
+            ('weight', 11, self.resp)
+            ])
+        frame = Frame(body, header=header, footer=footer, focus_part='footer')
+        palette = [
+            ('wintitle', 'yellow', 'default', 'bold'),
+            ('green', 'dark green', 'default', 'bold'),
+            ('NORM', 'light gray', 'default', 'default'),
+            ('NORMF', 'yellow', 'default', 'standout'),
+            ('ALERT', 'light red', 'default', 'default'),
+            ('ALERTF', 'standout,light red', 'default', 'standout'),
+            ('WARN', 'light magenta', 'default', 'underline'),
+            ('WARNF', 'standout,light magenta', 'default', 'standout,underline'),
+            ('default', 'NORM'),
+            ]
+        super().__init__(frame, unhandled_input=self.show_or_exit, palette=palette)
+        (screen_cols, screen_rows) = self.screen.get_cols_rows()
+        glg_rows = screen_rows - (2 + 5 + 11)
+
+        self.msg.append(
+            Text(('NORM', 'Screen has {:d} rows and {:d} columns'.format(screen_rows, screen_cols))))
+        self.msg.append(
+            Text(('NORM', 'glg has {:d} rows'.format(glg_rows))))
+
+    def _alarm_putline(self, main_loop, user_data):
+        """Called via set_alarm_in when putline is called outside the main thread
+
+        Receives the arguments from set_alarm and re-calls putline on the
+        main thread.
+
+        Args:
+            main_loop (urwid.main_loop): Standard args for set_alarm method
+            user_data (object): Standard args for set_alarm method
+        """
+
+        del main_loop    # unused
+        (window, message, *color) = user_data
+
+        try:
+            color = color[0]
+        except IndexError:
+            color = 'NORM'
+
+        self.putline(window, message, color)
+
+    def putline(self, window, message, color='NORM'):
         """Scroll the window and write the message on the bottom line.
 
         Positional parameters:
         window -- The name of the window("msg", "glg", "resp")
-        message -- The message (a string)
+        message -- The message (a string, a tuple[attributed string(s)] or a Widget)
 
         Keyword parameters:
         color -- The color of the message("NORM", "ALERT", "WARN", "GREEN")
         """
-        target = self.windows[window].putline(message, color)
 
-    def getline(self):
-        """Get a line from the command window."""
-        self.windows["cmd"].window.erase()
-        self.windows["cmd"].window.move(0, 0)
-        target = self.windows["cmd"].textbox
-        return target.edit().strip()
+        if self.thread_id == threading.get_ident():
+            if not window in ('msg', 'glg', 'resp'):
+                window = 'msg'
 
-    def alert(self):
-        """NOTE: TBD"""
-        raise NotImplementedError("We cannot alert just yet")
+            self.__logger.debug('window=%s, message=%s, color=%s', window, repr(message), color)
+            if isinstance(message, urwid.Widget): # a Widget?
+                wid = message
+            elif isinstance(message, str):        # a bare string gets color
+                wid = Text((color, message))
+            else:
+                wid = Text(message)               # probably a tuple
 
-    def message(self, message, color = "WARN"):
+            self.windows[window].append(wid)
+
+        else:
+            self.__logger.debug('redirect: "%s", "%s", "%s"', window, message, color)
+            self.set_alarm_in(0.0, self._alarm_putline, user_data=(window, message, color))
+
+    def alert(self, message):
+        """Display an ALERT message in the message window.
+
+        Args:
+            message (str): Alert message to display.
+
+        .. TODO:: Sound an alarm??
+        """
+
+        self.message(message, color="ALERT")
+
+    def message(self, message, color="WARN"):
         """Put a message in the message window
 
-        Positional parameters:
-        message -- The message (a string)
-
-        Keyword parameters:
-        color -- The color of the message("NORM", "ALERT", "WARN", "GREEN")
+        Args:
+            message (str): The message
+            color (str): The color of the message("NORM", "ALERT", "WARN", "GREEN")
         """
+
         self.putline("msg", message, color)
 
-    def close(self):
-        curses.endwin()
+    def _alarm_set_widget_text(self, main_loop, user_data):
+        """set_alarm target methos for set_widget_text.
+
+        Receives the arguments from set_alarm and re-calls set_widget_text on the
+        main thread.
+
+        Args:
+            main_loop (urwid.main_loop): Standard args for set_alarm method
+            user_data (object): Standard args for set_alarm method
+        """
+
+        del main_loop    # unused
+        (wid, txt) = user_data
+        self.set_widget_text(wid, txt)
+
+    def set_widget_text(self, wid, txt):
+        """Performs set_widget_text for the supplied widget.
+
+        Will schedule the set_widget_text on the main thread if called from a different thread.
+
+        Args:
+            wid (urwid.Widget): The target Widget
+            txt (str): The text to apply to the Widget
+        """
+
+        if self.thread_id == threading.get_ident():
+            self.__logger.debug(txt)
+            wid.set_widget_text(txt)
+        else:
+            self.set_alarm_in(0.0, self._alarm_set_widget_text, (wid, txt))
+
+    def do_it(self, callback, data=None, delay_time=0.0):
+        """Called by other threads, schedules a method call for execution by main_loop
+
+        Args:
+            callback (function): Function or methos to schedule
+            data (object): Passed to function by set_alarm
+            delay_time (float): Delay time in seconds
+        """
+
+        self.set_alarm_in(delay_time, callback, data)
+
+    def do_quit(self, main_loop=None, user_data=None):
+        """Raise urwid.ExitMainLoop to stop the system
+
+        Checks the current thread ID and reschedules itself on the main thread if necessary.
+
+        Args:
+            main_loop (urwid.MailLoop): Not used
+            user_data (object): Not used
+        """
+
+        del main_loop, user_data # unused
+        self.__logger.warning('QUIT requested')
+        if self.thread_id == threading.get_ident():
+            raise urwid.ExitMainLoop
+        else:
+            self.set_alarm_in(0.1, self.do_quit)
+
+    def dispatch_command(self, inputstr):
+        """Dummy routine. Must be overridden by the subclass.
+
+        Posts an ALERT to the window.
+        """
+
+        del inputstr    # unused
+        self.alert("IMPLEMENTATION ERROR. Commands not available.")
+
+
+
+# Run simulation for testing
+if __name__ == '__main__':
+    def main():
+        """Testing routine
+        """
+
+        def loop_test():
+            """A simple thread test
+            """
+
+            dologger = logging.getLogger(__name__).getChild(type(self).__name__)
+            dologger.info('starting')
+            loop_test_time = "I'm not done yet!"
+            dologger.debug(loop_test_time)
+            monwin.putline('msg', loop_test_time, 'WARN')
+            now_start = time.time()
+            time.sleep(5)
+            now_stop = time.time()
+            loop_test_time = "loop test took {:5.3f} seconds".format(now_stop - now_start)
+            monwin.alert(loop_test_time)
+            monwin.set_widget_text(monwin.ver, 'Ver 2.3.4')
+
+            dologger.info(loop_test_time)
+
+        fmt = '%(asctime)s -%(levelname)s- *%(threadName)s* %%%(funcName)s%% %(message)s'
+        logging.basicConfig(filename='Monwin.log', filemode='w', level=logging.DEBUG, format=fmt)
+        logger = logging.getLogger(__name__).getChild(type(self).__name__)
+        now1 = time.time()
+
+        monwin = Monwin()
+
+        loop_test = threading.Thread(target=loop_test, name='LoopTest')
+        _do_nothing(monwin, None)
+        loop_test.start()
+        monwin.run()
+
+        logger.info("That took %5.3f seconds", time.time() - now1)
+        logging.shutdown()
+
+    main()
