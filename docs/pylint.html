@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>
+			Scanmon Pylint Results
+		</title>
+		<meta name="generator" content="BBEdit 11.1" />
+		<style type="text/css">
+html {
+    height: 100%;
+}
+
+body {
+    height: 88%;
+}
+
+.buttons {
+    width: 90%;
+    height: 50px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 10%;
+}
+
+.reports {
+    width: 100%;
+    height: 100%;
+}
+
+.embed {
+    width: 100%;
+    height: 100%;
+    padding-top: 8px;
+    border-style: solid none none;
+    border-color: darkgray;
+}</style>
+		<script>
+var base = "pylint_";
+
+function loadit(button) {
+    var where =  base + button.value + ".txt";
+    var embed = document.getElementById("embed");
+    embed.src = where;
+    var buttons = document.getElementsByTagName("button");
+
+    button.style.color = "blue";
+
+    var b;
+    for (i = 0; i < buttons.length; i++) {
+        var b = buttons[i];
+        if (b !== button) {
+            b.style.color = "black";
+        }
+    }
+
+}</script>
+	</head>
+	<body>
+		<div class="buttons">
+			<button value="global" type="button" onclick="loadit(this);" style="color: blue;">
+				Master
+			</button>
+			<button value="scanmon" type="button" onclick="loadit(this);">
+				Scanmon
+			</button>
+			<button value="scanmon.glgmonitor" type="button" onclick="loadit(this);">
+				GLGMonitor
+			</button>
+			<button value="scanmon.__main__" type="button" onclick="loadit(this);">
+				Scanmon __main__
+			</button>
+			<button value="scanmon.monwin" type="button" onclick="loadit(this);">
+				Scanmon Monwin
+			</button>
+			<button value="scanmon.receivingstate" type="button" onclick="loadit(this);">
+				Scanmon Receivingstate
+			</button>
+			<button value="scanmon.scanner.formatter.GLG" type="button" onclick="loadit(this);">
+				Scanmon GLG
+			</button>
+			<button value="scanmon.scanner.formatter.__init__" type="button" onclick="loadit(this);">
+				Scanner Formatter
+			</button>
+			<button value="scanmon.scanner.formatter.MDL" type="button" onclick="loadit(this);">
+				Formatter MDL
+			</button>
+			<button value="scanmon.scanner.formatter.Model" type="button" onclick="loadit(this);">
+				Formatter Model
+			</button>
+			<button value="scanmon.scanner.formatter.STS" type="button" onclick="loadit(this);">
+				Formatter STS
+			</button>
+			<button value="scanmon.scanner.formatter.VER" type="button" onclick="loadit(this);">
+				Formatter VER
+			</button>
+			<button value="scanmon.scanner.__init__" type="button" onclick="loadit(this);">
+				Scanner
+			</button>
+		</div>
+		<div class="reports">
+			<iframe src="http://scanmon.greybeard.org/scanmon-docs/pylint_global.txt" class="embed" id="embed">
+			</iframe>
+		</div>
+	</body>
+</html>
