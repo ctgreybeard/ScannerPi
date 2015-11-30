@@ -6,6 +6,18 @@
 Scanmon Documentation
 ===============================
 
+The enclosed package supports monitoring and control of a Uniden BCD996XT
+scanner radio. Functions provided are:
+
+* Channel monitoring and display of activity
+* Update icecast2 stream title information
+* Volume control
+* Keypad functions
+
+The source is available at the `Github Repository`_
+
+.. _Github Repository: https://github.com/ctgreybeard/scanmon.git
+
 Contents:
 
 .. toctree::
