@@ -74,18 +74,18 @@ class Titler(threading.Thread):
     # TODO(admin@greybeard.org): Parameterize these
 
     _TITLEPARAMS = {
-        'mount': '/stream',
+        'mount': '/scanner.ogg',
         'mode': 'updinfo',
     }
 
     def __init__(self):
         super().__init__()
         self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
-        requests_log = logging.getLogger("requests.packages.urllib3")
-        requests_log.setLevel(logging.WARNING)
         self._requests_session = requests.Session()
         self._requests_session.auth = self._AUTH
         self._requests_session.params = self._TITLEPARAMS
+        requests_log = logging.getLogger("urllib3")
+        requests_log.setLevel(logging.WARNING)
         self._title_queue = queue.Queue()
         self.daemon = True
         self.name = "**Titler**"
