@@ -69,23 +69,32 @@ class Titler(threading.Thread):
     block.
     """
 
-    _AUTH = ('admin', 'carroll')
-    _URL = 'http://localhost:8000/admin/metadata'
-    # TODO(admin@greybeard.org): Parameterize these
+    _URL = 'http://{host}:{port}/admin/metadata'
 
     _TITLEPARAMS = {
-        'mount': '/stream',
         'mode': 'updinfo',
     }
 
-    def __init__(self):
+    def __init__(self, config):
         super().__init__()
+
+        self.config = config
+        try:
+            self._updating = self.config.getboolean('titleupdate', fallback=True)
+        except ValueError:
+            self.__logger.error('Value error for titleupdate: {}'.format(self.config.get('titleupdate')))
+            self._updating = False
+
         self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
-        requests_log = logging.getLogger("requests.packages.urllib3")
+        requests_log = logging.getLogger("urllib3")
         requests_log.setLevel(logging.WARNING)
         self._requests_session = requests.Session()
-        self._requests_session.auth = self._AUTH
-        self._requests_session.params = self._TITLEPARAMS
+        self._requests_session.auth = (
+            self.config.get('icecastid', fallback='admin'),
+            self.config.get('icecastpwd', fallback='hackme'))
+        titleparams = dict(self._TITLEPARAMS)
+        titleparams['mount'] = self.config.get('titlestream', fallback='/stream')
+        self._requests_session.params = titleparams
         self._title_queue = queue.Queue()
         self.daemon = True
         self.name = "**Titler**"
@@ -133,14 +142,17 @@ class Titler(threading.Thread):
 
         self.__logger.debug("update_title: %s", title)
 
-        try:
-            result = self._requests_session.get(self._URL, params={'song': title})
-            if result.status_code != requests.codes.ok:      # pylint: disable=no-member
-                self.__logger.error('Title update request error (%d): %s',
-                                    result.status_code,
-                                    result.text)
-        except requests.exceptions.RequestException:
-            self.__logger.exception("Error in title update request")
+        if self._updating:
+            try:
+                url = self._URL.format(host=self.config.get('icecasthost', fallback='localhost'),
+                                       port=self.config.get('icecastport', fallback='8000'))
+                result = self._requests_session.get(url, params={'song': title})
+                if result.status_code != requests.codes.ok:      # pylint: disable=no-member
+                    self.__logger.error('Title update request error (%d): %s',
+                                        result.status_code,
+                                        result.text)
+            except requests.exceptions.RequestException:
+                self.__logger.exception("Error in title update request")
 
 class GLGMonitor(ReceivingState):
     """Class to hold monitoring info for GLG monitoring.
@@ -170,8 +182,10 @@ class GLGMonitor(ReceivingState):
         Checks the Squelch, returns True on open Squelch"""
         return self.squelch
 
-    def __init__(self, monwin, args=None):
-        """Initialize the instance"""
+    def __init__(self, monwin, config=None):
+        """Initialize the instance
+        """
+
         super().__init__()
 # Set up logging
         self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
@@ -183,22 +197,22 @@ class GLGMonitor(ReceivingState):
         self.state = GLGMonitor.IDLE
         self.idletime = GLGMonitor.IDLETIME
 
-        if args and hasattr(args, 'timeout') and args.timeout is not None:
-            self.__logger.info("Timeout override: %s", args.timeout)
-            try:
-                self.idletime = float(args.timeout)
-            except ValueError:
-                self.__logger.error("Invalid timeout argument: %s", args.timeout)
+        if config:
+            if config.get('timeout', fallback=None) is not None:
+                newtimeout = config.get('timeout')
+                self.__logger.info("Timeout override: %s", newtimeout)
+                try:
+                    self.idletime = float(newtimeout)
+                except ValueError:
+                    self.__logger.error("Invalid timeout argument: %s", newtimeout)
 
-        if (args and
-                hasattr(args, 'database') and
-                args.database is not None and
-                len(args.database) > 0):
-            self.__initdb__(args.database)
-        else:
-            self.__initdb__(':memory:')
+            dbname = config.get('database', fallback='scanmon.db')
 
-        self.title_updater = Titler()
+            dblevel = config.get('dblevel', fallback='summary').lower()
+
+        self.__initdb__(dbname, dblevel)
+
+        self.title_updater = Titler(config)
         self.title_updater.start()
         self.title_updater.put(GLGMonitor._DEFTITLE)     # Default idle title
         #self.__logger.setLevel(logging.ERROR)    # Keep the info logging until we get started
@@ -226,10 +240,11 @@ class GLGMonitor(ReceivingState):
         self.current_widget = None
         self.scroll_win()
 
-    def __initdb__(self, database):
+    def __initdb__(self, database, level):
         """Initialize the database for storing Receptions and tracking lastseen."""
         try:
             self.database = database
+            self.dblevel = level
             self.__logger.info("Using database: %s", self.database)
             self.dbconn = sqlite3.connect(self.database,
                                           detect_types=sqlite3.PARSE_DECLTYPES,
@@ -249,7 +264,7 @@ class GLGMonitor(ReceivingState):
                  "ChannelTag" integer,
                  "P25NAC" text)"""
             self.dbconn.execute(create)
-            self.dbconn.execute("""CREATE TEMPORARY TABLE IF NOT EXISTS LastSeen
+            self.dbconn.execute("""CREATE TABLE IF NOT EXISTS "LastSeen"
                 ("System" TEXT,
                  "Group" TEXT,
                  "Channel" TEXT,
@@ -328,20 +343,23 @@ class GLGMonitor(ReceivingState):
             self.state = GLGMonitor.TIMEOUT
 
     def write_database(self):
-        """Write database record, set state"""
+        """Write database record, set state
+        """
+
         self.__logger.debug("system: %s", self.reception.sys_id)
 
         if self.reception:
-            try:
-                dbwrite = """INSERT INTO "Reception"
-                    ("Starttime", "Duration", "System", "Group", "Channel", "Frequency_TGID", "CTCSS_DCS",
-                     "Modulation", "Attenuation", "SystemTag", "ChannelTag", "P25NAC") VALUES
-                    (:starttime, :duration, :system, :group, :channel, :frequency_tgid, :ctcss_dcs,
-                     :modulation, :attenuation, :system_tag, :channel_tag, :p25nac)"""
-                self.dbconn.execute(dbwrite, self.reception.__dict__)
-            except sqlite3.Error:
-                self.__logger.exception("Error writing Reception to database")
-                raise
+            if self.dblevel == 'detail':
+                try:
+                    dbwrite = """INSERT INTO "Reception"
+                        ("Starttime", "Duration", "System", "Group", "Channel", "Frequency_TGID", "CTCSS_DCS",
+                         "Modulation", "Attenuation", "SystemTag", "ChannelTag", "P25NAC") VALUES
+                        (:starttime, :duration, :system, :group, :channel, :frequency_tgid, :ctcss_dcs,
+                         :modulation, :attenuation, :system_tag, :channel_tag, :p25nac)"""
+                    self.dbconn.execute(dbwrite, self.reception.__dict__)
+                except sqlite3.Error:
+                    self.__logger.exception("Error writing Reception to database")
+                    raise
         else:
             self.__logger.error("Cannot write database if no Reception exists!")
 
