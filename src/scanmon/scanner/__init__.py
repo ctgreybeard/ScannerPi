@@ -205,10 +205,8 @@ class Scanner(object):
         self.iolock = RLock()
         if device is None:
             devs = _DEVS
-        elif isinstance(device, str):
-            devs = (device, )
         else:
-            devs = device
+            devs = tuple(device.split(','))
 
         self.device = None
         for dev in devs:

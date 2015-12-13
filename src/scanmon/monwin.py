@@ -197,7 +197,7 @@ class Monwin(urwid.MainLoop):
 
         return True
 
-    def __init__(self):
+    def __init__(self, config):
         self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
         self.mdl = Text('[checking...]')
         self.ver = Text('[checking...]')
@@ -225,15 +225,30 @@ class Monwin(urwid.MainLoop):
             ('weight', 11, self.resp)
             ])
         frame = Frame(body, header=header, footer=footer, focus_part='footer')
+
+        if config is not None:
+            c_green = config.get('green', fallback='dark green')
+            c_normal = config.get('normal', fallback='light gray')
+            c_alert = config.get('alert', fallback='light red')
+            c_warning = config.get('warning', fallback='light magenta')
+            c_focus = config.get('focus', fallback='standout')
+        else:
+            self.__logger.warning("No config found")
+            c_green = 'dark green'
+            c_normal = 'light gray'
+            c_alert = 'light red'
+            c_warning = 'light magenta'
+            c_focus = 'standout'
+
         palette = [
             ('wintitle', 'yellow', 'default', 'bold'),
-            ('green', 'dark green', 'default', 'bold'),
-            ('NORM', 'light gray', 'default', 'default'),
-            ('NORMF', 'yellow', 'default', 'standout'),
-            ('ALERT', 'light red', 'default', 'default'),
-            ('ALERTF', 'standout,light red', 'default', 'standout'),
-            ('WARN', 'light magenta', 'default', 'underline'),
-            ('WARNF', 'standout,light magenta', 'default', 'standout,underline'),
+            ('green', c_green, 'default', 'bold'),
+            ('NORM', c_normal, 'default', 'default'),
+            ('NORMF', '{},{}'.format(c_focus, c_normal), 'default', 'standout'),
+            ('ALERT', c_alert, 'default', 'default'),
+            ('ALERTF', '{},{}'.format(c_focus, c_alert), 'default', 'standout'),
+            ('WARN', c_warning, 'default', 'underline'),
+            ('WARNF', '{},{}'.format(c_focus, c_warning), 'default', 'standout,underline'),
             ('default', 'NORM'),
             ]
         super().__init__(frame, unhandled_input=self.show_or_exit, palette=palette)
@@ -396,7 +411,7 @@ if __name__ == '__main__':
             """A simple thread test
             """
 
-            dologger = logging.getLogger(__name__).getChild(type(self).__name__)
+            dologger = logging.getLogger(__name__)
             dologger.info('starting')
             loop_test_time = "I'm not done yet!"
             dologger.debug(loop_test_time)
@@ -412,10 +427,10 @@ if __name__ == '__main__':
 
         fmt = '%(asctime)s -%(levelname)s- *%(threadName)s* %%%(funcName)s%% %(message)s'
         logging.basicConfig(filename='Monwin.log', filemode='w', level=logging.DEBUG, format=fmt)
-        logger = logging.getLogger(__name__).getChild(type(self).__name__)
+        logger = logging.getLogger(__name__)
         now1 = time.time()
 
-        monwin = Monwin()
+        monwin = Monwin(None)
 
         loop_test = threading.Thread(target=loop_test, name='LoopTest')
         _do_nothing(monwin, None)
