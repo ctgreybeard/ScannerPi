@@ -92,13 +92,14 @@ class Titler(threading.Thread):
         self._requests_session.auth = (
             self.config.get('icecastid', fallback='admin'),
             self.config.get('icecastpwd', fallback='hackme'))
-        titleparams = dict(self._TITLEPARAMS)
+        titleparams = dict(Titler._TITLEPARAMS)
         titleparams['mount'] = self.config.get('titlestream', fallback='/stream')
         self._requests_session.params = titleparams
         self._title_queue = queue.Queue()
         self.daemon = True
         self.name = "**Titler**"
         self._running = False
+        self.error_count = 0
 
     def run(self):
         """Set up logging the loop on the input queue. When a title is posted update Icecast2.
@@ -136,6 +137,12 @@ class Titler(threading.Thread):
         self.__logger.debug("title: " + new_title)
         self._title_queue.put(new_title)
 
+    def check_error(self):
+        self.error_count += 1
+        if self.error_count > GLGMonitor._MAX_ERROR:
+            self.__logger.error("Updating stopped, too many errors.")
+            self._updating = False
+
     def update_title(self, title):
         """Update the Icecast title using the established session object.
         """
@@ -144,15 +151,19 @@ class Titler(threading.Thread):
 
         if self._updating:
             try:
-                url = self._URL.format(host=self.config.get('icecasthost', fallback='localhost'),
+                url = Titler._URL.format(host=self.config.get('icecasthost', fallback='localhost'),
                                        port=self.config.get('icecastport', fallback='8000'))
                 result = self._requests_session.get(url, params={'song': title})
                 if result.status_code != requests.codes.ok:      # pylint: disable=no-member
                     self.__logger.error('Title update request error (%d): %s',
                                         result.status_code,
                                         result.text)
+                    self.check_error()
+                else:
+                    self.error_count = 0
             except requests.exceptions.RequestException:
                 self.__logger.exception("Error in title update request")
+                self.check_error()
 
 class GLGMonitor(ReceivingState):
     """Class to hold monitoring info for GLG monitoring.
@@ -165,6 +176,7 @@ class GLGMonitor(ReceivingState):
     _TIMEFMT = '%H:%M:%S'
     _EPOCH = 3600 * 24 * 356    # A year of seconds (sort of ...)
     _DEFTITLE = "Bethel/Danbury, CT Fire/EMS Scanner"
+    _MAX_ERROR = 5  # Five consecutive errors stops updating
 
     @property
     def sys_id(self):
