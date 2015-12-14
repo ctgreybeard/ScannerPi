@@ -23,7 +23,7 @@ import threading
 def _do_nothing(main_loop, user_data):
     """Does nothing useful except to waken the main loop to cause refreshes.
 
-    I believe this works around a bug in urwid. Rescedules itslef ever 0.5 seconds to
+    I believe this works around a bug in urwid. Rescedules itself ever 0.5 seconds to
     keep things alive.
 
     Args:
@@ -88,19 +88,43 @@ class Monwin(urwid.MainLoop):
             title (str): Optional title string for the window header.
         """
 
-        def __init__(self, title=None):
+        _MIN_MAX = 12   # scroll_max must be at least this ...
+
+        def __init__(self, title=None, s_max=300):
             """Initialize the ScrollWin.
             """
 
             self.__logger = logging.getLogger(__name__).getChild(type(self).__name__)
+
             self.scroller = ListBox(SimpleFocusListWalker([]))
+
             if title:
                 self.frame_title = Columns([('pack', Text('--')),
                                             ('pack', Text(('wintitle', title))),
                                             Divider('-')])
             else:
                 self.frame_title = None
+
             super().__init__(Frame(self.scroller, header=self.frame_title))
+
+            self._scroll_max = 300      # Default
+            self._scroll_max = s_max
+
+        @property
+        def scroll_max(self):
+            """The maximum number of lines to hold in the scroller.
+
+            When this limit is reached 1/3 of the first lines will be deleted.
+            """
+
+            return self._scroll_max
+
+        @scroll_max.setter
+        def scroll_max(self, s_max):
+            try:
+                self._scroll_max = max(int(s_max), MonWin.ScrollWin._MIN_MAX)
+            except ValueError:
+                self.__logger.error('Invalid scroll_max setting: %r', s_max)
 
         def append(self, wid):
             """Append a line to the window contents.
@@ -114,12 +138,20 @@ class Monwin(urwid.MainLoop):
                 focus_now = self.scroller.focus_position
             except IndexError:
                 focus_now = -1
+
             bottom = focus_now == len(self.scroller.body) - 1  # Bottom widget in focus?
+
             self.scroller.body.append(AttrMap(wid, None,        # pylint: disable=no-member
                                               {'NORM': 'NORMF',
                                                'WARN': 'WARNF',
                                                'ALERT': 'ALERTF',
                                                'default': 'NORMF'}))
+
+            if len(self.scroller.body) > self.scroll_max:
+                rlines = int(self.scroll_max / 3)
+                self.__logger.info('Removing %d lines', rlines)
+                del self.scroller.body[0:rlines]
+
             if bottom:
                 self.__logger.debug('scrolling')
                 self.scroller.set_focus(focus_now + 1, coming_from='above')
