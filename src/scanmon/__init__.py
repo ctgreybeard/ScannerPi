@@ -42,6 +42,7 @@ class Scanmon(Monwin):
 # Class constants
     _LOGFORMAT = "{asctime} {name}.{funcName} -{levelname}- *{threadName}* {message}"
     _TIMEFMT = '%H:%M:%S'
+    _DATETIMEFMT = '%a %d %b %Y %H:%M %Z'
     _GLGTIME = 0.5  # Half second
     _EPOCH = 3600 * 24 * 356    # A year of seconds
     _MAXSIZE = 10
@@ -139,6 +140,7 @@ class Scanmon(Monwin):
         self.scanner.watch_command(Command('*', callback=self.catch_all))
         self.running = False
         self.autocmd = False
+        self.automute = None
 
         # Commands entered at the console
         self.q_cmdin = queue.Queue(maxsize=Scanmon._MAXSIZE)
@@ -154,7 +156,7 @@ class Scanmon(Monwin):
         sqlite3.register_converter('boolean', Scanmon._convert_bool)
 
         # Initialization complete
-        self.__logger.info("Scanmon initializing")
+        self.__logger.info("Scanmon initialization complete")
 
     def catch_all(self, command, response):
         """Fallback response handler. If no other handler is registered this handler
@@ -268,6 +270,78 @@ class Scanmon(Monwin):
         self.__logger.info('Quitting...')
         self.running = False
         raise ExitMainLoop
+
+    def set_automute(self, mute_t):
+        """Set the automute time.
+
+        Args:
+            mute_t (datetime): New automute time or None to cancel
+        """
+
+        if self.automute:
+            # First, cancel any existing automute
+            (_, t_handle) = self.automute
+            self.remove_alarm(t_handle)
+            self.automute = None
+
+        if mute_t:
+            self.automute = (mute_t, self.set_alarm_at(mute_t.timestamp(), self.do_automute))
+
+    def cmd_automute(self, cmd, cmd_args):
+        """Set or unset time to automatically mute the scanner.
+
+        Args:
+            cmd (str): "automute"
+            cmd_args (str): Either a time or "off"
+        """
+
+        if cmd_args == "":
+            if self.automute:
+                (m_time, _) = self.automute
+                ans = m_time.strftime(Scanmon._DATETIMEFMT)
+            else:
+                ans = "Off"
+
+            self.putline('resp', "Automute: {}".format(ans))
+
+        elif cmd_args == "off":
+            self.set_automute(None)
+
+            self.putline('resp', "Automute: Off")
+
+        else:
+            try:
+                newtime = datetime.datetime.strptime(cmd_args, "%H:%M")
+            except ValueError:
+                self.putline('resp', "Invalid time for automute")
+                return
+
+            thisday = datetime.date.today()
+            thistime = datetime.time(newtime.hour, newtime.minute, 0)
+            mute_t = datetime.datetime.combine(thisday, thistime)
+
+            while mute_t < datetime.datetime.today():
+                mute_t += datetime.timedelta(days=1)
+
+            self.set_automute(mute_t)
+            self.putline('resp', "Automute: {}".format(mute_t.strftime(Scanmon._DATETIMEFMT)))
+
+    def do_automute(self, win, user_data=None):
+        """Execute mute (VOL,0) and update the automute time if set.
+
+        Args:
+            none
+        """
+
+        self.cmd_vol("VOL", "0")
+        if self.automute:
+            (mute_t, _) = self.automute
+            mute_t = mute_t + datetime.timedelta(days=1)
+            self.set_automute(mute_t)
+            self.putline('msg', "Auto muted")
+        else:
+            self.__logger.error("Automute called for no reason")
+            self.putline('msg', "Automute called for no reason")
 
     def dispatch_command(self, inputstr):
         """Process commands.
