@@ -2,6 +2,8 @@
 
 [[ -f scanmon.log ]] && rm scanmon.log
 
+[[ -n $TMUX ]] && tmux rename-window Scanmon
+
 python3 -m scanmon $* 2>error.log
 stty sane		# Just in case
 

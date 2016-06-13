@@ -108,7 +108,7 @@ class Monwin(urwid.MainLoop):
             super().__init__(Frame(self.scroller, header=self.frame_title))
 
             self._scroll_max = 300      # Default
-            self._scroll_max = s_max
+            self.scroll_max = s_max
 
         @property
         def scroll_max(self):
@@ -122,7 +122,7 @@ class Monwin(urwid.MainLoop):
         @scroll_max.setter
         def scroll_max(self, s_max):
             try:
-                self._scroll_max = max(int(s_max), MonWin.ScrollWin._MIN_MAX)
+                self._scroll_max = max(int(s_max), Monwin.ScrollWin._MIN_MAX)
             except ValueError:
                 self.__logger.error('Invalid scroll_max setting: %r', s_max)
 
@@ -154,7 +154,7 @@ class Monwin(urwid.MainLoop):
 
             if bottom:
                 self.__logger.debug('scrolling')
-                self.scroller.set_focus(focus_now + 1, coming_from='above')
+                self.scroller.set_focus(len(self.scroller.body) - 1, coming_from='above')
             else:
                 self.__logger.debug('skipping scrolling')
 
