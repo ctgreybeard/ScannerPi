@@ -140,7 +140,16 @@ class Scanmon(Monwin):
         self.scanner.watch_command(Command('*', callback=self.catch_all))
         self.running = False
         self.autocmd = False
+
+        # Set automute time
         self.automute = None
+        c_automute = self.config.get('monitor', 'automute', fallback="off")
+        newtime = None
+        if c_automute != "off":
+            newtime = self._mute_time(c_automute)
+            if newtime is not None:
+                self.set_automute(newtime)
+
 
         # Commands entered at the console
         self.q_cmdin = queue.Queue(maxsize=Scanmon._MAXSIZE)
@@ -287,6 +296,24 @@ class Scanmon(Monwin):
         if mute_t:
             self.automute = (mute_t, self.set_alarm_at(mute_t.timestamp(), self.do_automute))
 
+    def _mute_time(self, ctime):
+        """Make a datetime for today at "ctime" time
+        """
+        try:
+            newtime = datetime.datetime.strptime(ctime, "%H:%M")
+        except ValueError:
+            self.message("Invalid time for automute")
+            return None
+
+        thisday = datetime.date.today()
+        thistime = datetime.time(newtime.hour, newtime.minute, 0)
+        mute_t = datetime.datetime.combine(thisday, thistime)
+
+        while mute_t < datetime.datetime.today():
+            mute_t += datetime.timedelta(days=1)
+
+        return mute_t
+
     def cmd_automute(self, cmd, cmd_args):
         """Set or unset time to automatically mute the scanner.
 
@@ -310,21 +337,11 @@ class Scanmon(Monwin):
             self.putline('resp', "Automute: Off")
 
         else:
-            try:
-                newtime = datetime.datetime.strptime(cmd_args, "%H:%M")
-            except ValueError:
-                self.putline('resp', "Invalid time for automute")
-                return
+            mute_t = self._mute_time(cmd_args)
 
-            thisday = datetime.date.today()
-            thistime = datetime.time(newtime.hour, newtime.minute, 0)
-            mute_t = datetime.datetime.combine(thisday, thistime)
-
-            while mute_t < datetime.datetime.today():
-                mute_t += datetime.timedelta(days=1)
-
-            self.set_automute(mute_t)
-            self.putline('resp', "Automute: {}".format(mute_t.strftime(Scanmon._DATETIMEFMT)))
+            if mute_t is not None:
+                self.set_automute(mute_t)
+                self.putline('resp', "Automute: {}".format(mute_t.strftime(Scanmon._DATETIMEFMT)))
 
     def do_automute(self, win, user_data=None):
         """Execute mute (VOL,0) and update the automute time if set.
@@ -416,7 +433,6 @@ class Scanmon(Monwin):
 
         for key, val in argmap.items():
             if key in args:
-                aval = str(vars(args)[key])
-                config[val[0]][val[1]] = aval
+                config[val[0]][val[1]] = str(vars(args)[key])
 
         return config

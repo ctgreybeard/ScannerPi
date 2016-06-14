@@ -174,6 +174,14 @@ def main():
                         help="The system port for icecast")
     argmap[_arg] = ('monitor', 'icecastport')
 
+    _arg = 'automute'
+    parser.add_argument("--" + _arg,
+                        dest=_arg,
+                        required=False,
+                        default=argparse.SUPPRESS,
+                        help="Time (UTC) to automatically mute the scanner")
+    argmap[_arg] = ('monitor', 'automute')
+
     args = parser.parse_args()
 
     scanner = Scanmon(args, argmap)
