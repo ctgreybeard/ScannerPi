@@ -295,6 +295,7 @@ class Scanmon(Monwin):
 
         if mute_t:
             self.automute = (mute_t, self.set_alarm_at(mute_t.timestamp(), self.do_automute))
+            self.message("Auto mute set to {}".format(mute_t.isoformat()))
 
     def _mute_time(self, ctime):
         """Make a datetime for today at "ctime" time
@@ -355,10 +356,10 @@ class Scanmon(Monwin):
             (mute_t, _) = self.automute
             mute_t = mute_t + datetime.timedelta(days=1)
             self.set_automute(mute_t)
-            self.putline('msg', "Auto muted")
+            self.message("Auto muted")
         else:
             self.__logger.error("Automute called for no reason")
-            self.putline('msg', "Automute called for no reason")
+            self.message("Automute called for no reason")
 
     def dispatch_command(self, inputstr):
         """Process commands.

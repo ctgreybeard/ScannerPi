@@ -18,6 +18,7 @@ from urwid import \
     SimpleFocusListWalker,\
     Text
 import time
+from datetime import datetime
 import threading
 
 def _do_nothing(main_loop, user_data):
@@ -361,7 +362,8 @@ class Monwin(urwid.MainLoop):
             color (str): The color of the message("NORM", "ALERT", "WARN", "GREEN")
         """
 
-        self.putline("msg", message, color)
+        it = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        self.putline("msg", "{} {}".format(it, message), color)
 
     def _alarm_set_widget_text(self, main_loop, user_data):
         """set_alarm target methos for set_widget_text.
