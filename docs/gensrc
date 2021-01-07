@@ -1,0 +1,20 @@
+#!zsh -f
+
+mkdir -p _build/html/src
+
+for f in ../src/scanmon/**/*.py; do
+    of=${f#../src/}
+    name=$(basename $of .py )
+    dirname=$(dirname $of)
+    dirname=${dirname//\//.}
+    oname="_build/html/src/${dirname}.${name}.html"
+    if [[ $name == '__init__' ]] {
+        oname="_build/html/src/${dirname}.html"
+    }
+    print "Generating for ${of} --> ${oname}"
+    pygmentize -f html -o "${oname}" \
+        -P 'cssfile=pystyle.css' \
+        -O 'style=colorful,linenos=inline,full,noclobber_cssfile=True' \
+        -P "title=$of" \
+        $f
+done

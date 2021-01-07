@@ -1,0 +1,10 @@
+#!/bin/zsh -f
+
+print "Cleaning all"
+make clean
+print "Making docs"
+make html
+print "Making source listings"
+./gensrc
+print "Generating pylint"
+./dopylint

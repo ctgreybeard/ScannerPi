@@ -1,11 +1,14 @@
-"""VER command response"""
+"""VER command response
+
+`Source <src/scanmon.scanner.formatter.VER.html>`__
+"""
 
 # Import our parent
-from . import ScannerDecodeError, Response
+#from . import ScannerDecodeError, Response
 
 # This list is the names of the response values. Usually taken from the Complete Reference manual
 
-varlist = ('CMD', 'VER')
+VARLIST = ('CMD', 'VER')
 
 def display(response):
     """Format a string to use as a generic display for the response."""
